@@ -4,12 +4,14 @@ import { MatchRow } from '../components/MatchRow.jsx'
 import { todayLabel } from '../lib/util.js'
 
 function FeaturedLive({ m }) {
-  const { th, t, mScore, openMatch } = useStore()
+  const { th, t, favs, mScore, openMatch } = useStore()
   const s = mScore(m)
   const ls = { hs: s.hs, as: s.as, minute: s.minute }
+  const favH = favs.includes(m.h), favA = favs.includes(m.a)
+  const fav = favH || favA
   return (
     <button onClick={() => openMatch(m)} style={{
-      width: '100%', font: 'inherit', textAlign: 'left', cursor: 'pointer', border: '1px solid ' + th.bd, background: th.sf,
+      width: '100%', font: 'inherit', textAlign: 'left', cursor: 'pointer', border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf,
       borderRadius: 20, padding: '22px 26px', position: 'relative', overflow: 'hidden', boxShadow: th.shadow,
     }}>
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: th.live }} />
@@ -20,7 +22,7 @@ function FeaturedLive({ m }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 16 }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }}>
           <Badge id={m.h} size={52} />
-          <span style={{ fontWeight: 750, fontSize: 16, color: th.tx }}>{t(m.h).name}</span>
+          <span style={{ fontWeight: favH ? 850 : 750, fontSize: 16, color: favH ? th.accent : th.tx }}>{t(m.h).name}{favH ? ' ★' : ''}</span>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontWeight: 850, fontSize: 46, letterSpacing: '-0.03em', color: th.tx, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{ls.hs + ' – ' + ls.as}</div>
@@ -31,7 +33,7 @@ function FeaturedLive({ m }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }}>
           <Badge id={m.a} size={52} />
-          <span style={{ fontWeight: 750, fontSize: 16, color: th.tx }}>{t(m.a).name}</span>
+          <span style={{ fontWeight: favA ? 850 : 750, fontSize: 16, color: favA ? th.accent : th.tx }}>{t(m.a).name}{favA ? ' ★' : ''}</span>
         </div>
       </div>
     </button>

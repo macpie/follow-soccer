@@ -17,7 +17,7 @@ export function Scorers() {
             }}>
               <span style={{ fontWeight: 850, fontSize: top ? 18 : 14, color: top ? th.accent : th.faint, textAlign: 'center' }}>{i + 1}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-                <Badge id={p.team} size={top ? 38 : 30} />
+                <Badge id={p.team} size={top ? 38 : 30} follow={false} />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 750, fontSize: top ? 16 : 14.5, color: th.tx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
                   <div style={{ fontSize: 11.5, color: th.faint, fontWeight: 600 }}>{t(p.team).name + ' · ' + p.assists + ' assists · ' + p.pens + ' pen'}</div>

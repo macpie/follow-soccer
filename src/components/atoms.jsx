@@ -2,26 +2,36 @@ import { useStore } from '../store.jsx'
 import { txtOn } from '../lib/util.js'
 
 // Team badge: real crest (live mode) or a brand-colored circle with the 3-letter code.
-export function Badge({ id, size = 30 }) {
-  const { t, D } = useStore()
+// Clicking it toggles following that team (unless `follow` is false, e.g. in Scorers, or
+// the slot is a knockout placeholder rather than a real qualified team).
+export function Badge({ id, size = 30, follow = true }) {
+  const { t, D, th, favs, toggleFav } = useStore()
   const T = t(id)
   if (!T) return null
   const crest = D.CRESTS && D.CRESTS[id]
+  const followable = follow && T.g && T.g !== '?'
+  const on = favs.includes(id)
+  const fx = followable ? {
+    onClick: (e) => { e.stopPropagation(); toggleFav(id) },
+    title: (on ? 'Following ' : 'Follow ') + T.name,
+  } : {}
+  const cursor = followable ? 'pointer' : 'inherit'
+
   if (crest) {
     return (
-      <span style={{
+      <span {...fx} style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: size, height: size, borderRadius: '50%', flex: '0 0 auto', overflow: 'hidden',
-        background: '#fff', boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.10)',
+        width: size, height: size, borderRadius: '50%', flex: '0 0 auto', overflow: 'hidden', cursor,
+        background: '#fff', boxShadow: 'inset 0 0 0 ' + (on ? '2px ' + th.accent : '1px rgba(0,0,0,0.10)'),
       }}>
         <img src={crest} alt={T.code} loading="lazy" style={{ width: '76%', height: '76%', objectFit: 'contain' }} />
       </span>
     )
   }
   return (
-    <span style={{
+    <span {...fx} style={{
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: size, height: size, borderRadius: '50%', flex: '0 0 auto',
+      width: size, height: size, borderRadius: '50%', flex: '0 0 auto', cursor,
       background: T.c, color: txtOn(T.c), fontWeight: 800, fontSize: size * 0.34,
       letterSpacing: '-0.02em', boxShadow: 'inset 0 0 0 ' + Math.max(1, size * 0.06) + 'px ' + T.c2 + '33',
     }}>{T.code}</span>

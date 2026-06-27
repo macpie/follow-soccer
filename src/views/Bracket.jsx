@@ -17,30 +17,37 @@ function ColumnHead({ label, color }) {
 }
 
 function Column({ title, color, children }) {
+  // The title stays pinned at the top; the cells fill the remaining height and spread
+  // evenly (space-around), so each round centers against the round that feeds it.
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-around', gap: 10, flex: '0 0 auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: '0 0 auto', alignSelf: 'stretch' }}>
       <ColumnHead label={title} color={color} />
-      {children}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-around', gap: 10 }}>
+        {children}
+      </div>
     </div>
   )
 }
 
 // ---- live bracket cell, built from a real ESPN knockout match ----
 function LiveKoCell({ m }) {
-  const { th, t, mScore, openMatch } = useStore()
+  const { th, t, favs, mScore, openMatch } = useStore()
   const s = mScore(m)
   const played = s.hs != null
   const isLive = m.status === 'LIVE'
   const clickable = played || isLive
+  const favH = m.hKnown && favs.includes(m.h), favA = m.aKnown && favs.includes(m.a)
+  const fav = favH || favA
 
-  const slot = (code, known, label, score, isWinner) => (
+  const slot = (code, known, label, score, isWinner, isFav) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px' }}>
       {known
         ? <Badge id={code} size={22} />
         : <span style={{ width: 22, height: 22, borderRadius: '50%', border: '1.5px dashed ' + th.bd2, flex: '0 0 auto' }} />}
-      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: known ? (isWinner ? 800 : 700) : 550, color: known ? th.tx : th.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: known ? (isFav || isWinner ? 800 : 700) : 550, color: isFav ? th.accent : (known ? th.tx : th.faint), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {known ? (t(code) ? t(code).name : code) : label}
       </span>
+      {isFav ? <span style={{ color: th.accent, fontSize: 10, flex: '0 0 auto' }}>★</span> : null}
       {played ? <span style={{ fontSize: 13, fontWeight: 800, color: isWinner ? th.tx : th.sub, fontVariantNumeric: 'tabular-nums' }}>{score}</span> : null}
     </div>
   )
@@ -49,7 +56,7 @@ function LiveKoCell({ m }) {
     <button
       onClick={() => clickable && openMatch(m)}
       style={{
-        width: 208, flex: '0 0 auto', border: '1px solid ' + th.bd, background: th.sf, borderRadius: 12, overflow: 'hidden',
+        width: 208, flex: '0 0 auto', border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf, borderRadius: 12, overflow: 'hidden',
         textAlign: 'left', font: 'inherit', cursor: clickable ? 'pointer' : 'default', padding: 0,
       }}
     >
@@ -59,9 +66,9 @@ function LiveKoCell({ m }) {
           ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9.5, fontWeight: 800, color: th.live, flex: '0 0 auto' }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: th.live, animation: 'wcPulse 1s infinite' }} />{s.minute + "'"}</span>
           : <span style={{ fontSize: 9.5, fontWeight: 700, color: th.faint, flex: '0 0 auto' }}>{played ? 'FT' : ''}</span>}
       </div>
-      {slot(m.h, m.hKnown, m.hName, s.hs, played && s.hs > s.as)}
+      {slot(m.h, m.hKnown, m.hName, s.hs, played && s.hs > s.as, favH)}
       <div style={{ height: 1, background: th.bd }} />
-      {slot(m.a, m.aKnown, m.aName, s.as, played && s.as > s.hs)}
+      {slot(m.a, m.aKnown, m.aName, s.as, played && s.as > s.hs, favA)}
     </button>
   )
 }
@@ -83,7 +90,7 @@ export function Bracket() {
         Knockout fixtures from the live schedule — kickoff times included. Decided matchups show teams and scores; undecided slots fill in as the group stage finishes. Scroll →
       </div>
       {hasKO ? (
-        <div className="wc-scroll" style={{ display: 'flex', gap: 30, overflowX: 'auto', paddingBottom: 18, alignItems: 'flex-start' }}>
+        <div className="wc-scroll" style={{ display: 'flex', gap: 30, overflowX: 'auto', paddingBottom: 18, alignItems: 'stretch' }}>
           {KO_ROUNDS.map((r, i) => (
             <Column key={r.slug} title={r.title} color={i === KO_ROUNDS.length - 1 ? th.accent : th.tx}>
               {(byRound[r.slug] || []).map(m => <LiveKoCell key={m.id} m={m} />)}
