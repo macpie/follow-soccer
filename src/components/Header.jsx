@@ -1,10 +1,10 @@
 import { useStore } from '../store.jsx'
-import { BallMark, SunIcon, MoonIcon } from './icons.jsx'
+import { BallMark, SunIcon, MoonIcon, BellIcon } from './icons.jsx'
 
 const TABS = [['today', 'Today'], ['matches', 'Matches'], ['groups', 'Groups'], ['bracket', 'Bracket'], ['scorers', 'Scorers']]
 
 export function Header() {
-  const { th, dark, view, setView, toggleDark, D } = useStore()
+  const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify } = useStore()
 
   const navBtn = ([id, label]) => {
     const on = view === id
@@ -36,7 +36,15 @@ export function Header() {
         <div className="wc-scroll" style={{ display: 'flex', gap: 2, overflowX: 'auto', padding: 2, background: th.sf2, borderRadius: 9999, flex: '0 1 auto', justifyContent: 'center' }}>
           {TABS.map(navBtn)}
         </div>
-        <div style={{ flex: '1 1 0', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ flex: '1 1 0', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          {notifySupported ? (
+            <button onClick={toggleNotify} title={notify ? 'Match alerts on — 15 min before your teams play' : 'Turn on match alerts'} style={{
+              width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + (notify ? th.accent : th.bd), background: notify ? th.accentSoft : th.sf, cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: notify ? th.accent : th.tx, flex: '0 0 auto',
+            }}>
+              <BellIcon filled={notify} />
+            </button>
+          ) : null}
           <button onClick={toggleDark} title="Toggle theme" style={{
             width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf, cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: th.tx, flex: '0 0 auto',

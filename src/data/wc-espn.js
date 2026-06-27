@@ -92,6 +92,7 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
     date: (when && fmtDate(when)) || 'TBD',
     time: (when && fmtTime(when)) || 'TBD',
     minute: status === 'LIVE' ? minuteOf(ev) : null,
+    kickoff: when ? when.getTime() : null, // epoch ms, for match-start alerts
     v, round, stage, _api: true,
   }
 }

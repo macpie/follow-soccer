@@ -18,6 +18,7 @@ export function StoreProvider({ children }) {
   const [view, setViewState] = useState(saved.view || 'today')
   const [dark, setDark] = useState(saved.dark || false)
   const [favs, setFavs] = useState(saved.favs || ['USA', 'BRA'])
+  const [notify, setNotify] = useState(saved.notify || false) // match alerts (15 min before kickoff)
 
   // ---- ephemeral UI ----
   const [sel, setSel] = useState(null)
@@ -30,11 +31,15 @@ export function StoreProvider({ children }) {
   const [detail, setDetail] = useState(null)
 
   const pollRef = useRef(null)
+  // live refs so the alert scheduler always reads current data/favs without re-arming
+  const dataRef = useRef(data); dataRef.current = data
+  const favsRef = useRef(favs); favsRef.current = favs
+  const notifiedRef = useRef(new Set())
 
   const save = useCallback((patch) => {
-    const next = Object.assign({ view, dark, favs }, patch)
+    const next = Object.assign({ view, dark, favs, notify }, patch)
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(next)) } catch (e) {}
-  }, [view, dark, favs])
+  }, [view, dark, favs, notify])
 
   const setView = (v) => { setViewState(v); save({ view: v }) }
   const toggleDark = () => { const d = !dark; setDark(d); save({ dark: d }) }
@@ -45,6 +50,22 @@ export function StoreProvider({ children }) {
       save({ favs: nextFavs })
       return nextFavs
     })
+  }
+
+  // Match alerts: ask for Notification permission, then fire 15 min before a followed
+  // team's kickoff (while the app is open — see the scheduler effect below).
+  const notifySupported = typeof window !== 'undefined' && 'Notification' in window
+  const toggleNotify = async () => {
+    if (!notifySupported) return
+    if (notify) { setNotify(false); save({ notify: false }); return }
+    let perm = Notification.permission
+    if (perm === 'default') { try { perm = await Notification.requestPermission() } catch (e) {} }
+    if (perm === 'granted') {
+      setNotify(true); save({ notify: true })
+      try { new Notification('Match alerts on', { body: "We'll remind you 15 minutes before your followed teams play." }) } catch (e) {}
+    } else {
+      setNotify(false); save({ notify: false })
+    }
   }
 
   // ---- data accessors ----
@@ -105,13 +126,41 @@ export function StoreProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Match alerts: while enabled, check every 30s and fire a notification once a followed
+  // team's match is within 15 minutes of kickoff. Only works while the app is open.
+  useEffect(() => {
+    if (!notify || !notifySupported || Notification.permission !== 'granted') return
+    const check = () => {
+      const d = dataRef.current; if (!d) return
+      const fv = favsRef.current; const now = Date.now()
+      d.MATCHES.forEach(m => {
+        if (m.status !== 'UP' || !m.kickoff) return
+        if (!(fv.includes(m.h) || fv.includes(m.a))) return
+        const mins = (m.kickoff - now) / 60000
+        if (mins > 0 && mins <= 15 && !notifiedRef.current.has(m.id)) {
+          notifiedRef.current.add(m.id)
+          const nm = (id) => (d.TEAMS[id] && d.TEAMS[id].name) || id
+          try {
+            new Notification('Kickoff in ' + Math.max(1, Math.round(mins)) + ' min', {
+              body: nm(m.h) + ' vs ' + nm(m.a) + (m.v ? ' · ' + m.v : ''),
+              tag: 'wc-' + m.id,
+            })
+          } catch (e) {}
+        }
+      })
+    }
+    check()
+    const iv = setInterval(check, 30000)
+    return () => clearInterval(iv)
+  }, [notify, notifySupported])
+
   const value = {
     // state
-    view, dark, favs, sel, modalTab, filter, source, data, detail,
+    view, dark, favs, notify, notifySupported, sel, modalTab, filter, source, data, detail,
     // accessors
     D, th, t, mScore, standings, thirdRace, events, detailReady,
     // actions
-    setView, toggleDark, toggleFav, setFilter, setModalTab,
+    setView, toggleDark, toggleFav, toggleNotify, setFilter, setModalTab,
     openMatch, closeMatch, reload: loadLive,
   }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
