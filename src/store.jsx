@@ -86,6 +86,9 @@ export function StoreProvider({ children }) {
   // Is the detail for the currently-open match loaded yet?
   const detailReady = (m) => !!(detail && detail.id === m.id)
 
+  // Whether the currently-open match modal is showing a live (in-progress) game.
+  const openMatchLive = !!(sel && data && (data.MATCHES.find(x => x.id === sel) || {}).status === 'LIVE')
+
   // ---- match modal ----
   // Any match can be opened — played/live show the full match center, upcoming show a
   // preview (form, head-to-head, broadcasts) from the same detail call.
@@ -175,6 +178,20 @@ export function StoreProvider({ children }) {
     const iv = setInterval(check, 30000)
     return () => clearInterval(iv)
   }, [notify, notifySupported])
+
+  // While a LIVE match modal is open, re-fetch its detail (event timeline, stats,
+  // commentary, lineups) every 30s so the game tracks itself without reopening the
+  // modal. The header score/clock already update from the live MATCHES poll; this keeps
+  // the rest of the match center in sync. Stops once the match ends or the modal closes.
+  useEffect(() => {
+    if (!sel || !openMatchLive) return
+    const iv = setInterval(() => {
+      WC_ESPN.detail(sel)
+        .then(dt => setSel(cur => { if (cur === sel) setDetail(dt); return cur }))
+        .catch(() => {})
+    }, 30000)
+    return () => clearInterval(iv)
+  }, [sel, openMatchLive])
 
   const value = {
     // state
