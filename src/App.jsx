@@ -1,12 +1,14 @@
 import { useStore } from './store.jsx'
 import { Header } from './components/Header.jsx'
 import { MatchModal } from './components/MatchModal.jsx'
+import { TeamModal } from './components/TeamModal.jsx'
 import { BallMark } from './components/icons.jsx'
 import { Today } from './views/Today.jsx'
 import { Matches } from './views/Matches.jsx'
 import { Groups } from './views/Groups.jsx'
 import { Bracket } from './views/Bracket.jsx'
 import { Stats } from './views/Stats.jsx'
+import { Teams } from './views/Teams.jsx'
 
 function Splash({ children }) {
   const { th } = useStore()
@@ -48,6 +50,7 @@ export default function App() {
     case 'groups': body = <Groups />; break
     case 'bracket': body = <Bracket />; break
     case 'stats': body = <Stats />; break
+    case 'teams': body = <Teams />; break
     default: body = <Today />
   }
 
@@ -56,6 +59,7 @@ export default function App() {
       <Header />
       {body}
       <MatchModal />
+      <TeamModal />
     </div>
   )
 }

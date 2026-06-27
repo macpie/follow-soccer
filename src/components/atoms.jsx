@@ -2,20 +2,20 @@ import { useStore } from '../store.jsx'
 import { txtOn } from '../lib/util.js'
 
 // Team badge: real crest (live mode) or a brand-colored circle with the 3-letter code.
-// Clicking it toggles following that team (unless `follow` is false, e.g. in the Stats view, or
-// the slot is a knockout placeholder rather than a real qualified team).
+// Clicking it navigates to the Teams page and opens that team's profile modal.
+// Pass follow=false in contexts where click should be a no-op (e.g. inside TeamModal itself).
 export function Badge({ id, size = 30, follow = true }) {
-  const { t, D, th, favs, toggleFav } = useStore()
+  const { t, D, th, favs, openTeamAndNav } = useStore()
   const T = t(id)
   if (!T) return null
   const crest = D.CRESTS && D.CRESTS[id]
-  const followable = follow && T.g && T.g !== '?'
+  const clickable = follow && T.g && T.g !== '?'
   const on = favs.includes(id)
-  const fx = followable ? {
-    onClick: (e) => { e.stopPropagation(); toggleFav(id) },
-    title: (on ? 'Following ' : 'Follow ') + T.name,
+  const fx = clickable ? {
+    onClick: (e) => { e.stopPropagation(); openTeamAndNav(id) },
+    title: 'View ' + T.name,
   } : {}
-  const cursor = followable ? 'pointer' : 'inherit'
+  const cursor = clickable ? 'pointer' : 'inherit'
 
   if (crest) {
     return (

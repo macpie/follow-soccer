@@ -1,7 +1,7 @@
 import { useStore } from '../store.jsx'
 import { BallMark, SunIcon, MoonIcon, BellIcon } from './icons.jsx'
 
-const TABS = [['today', 'Today'], ['matches', 'Matches'], ['groups', 'Groups'], ['bracket', 'Bracket'], ['stats', 'Stats']]
+const TABS = [['today', 'Today'], ['matches', 'Matches'], ['groups', 'Groups'], ['bracket', 'Bracket'], ['stats', 'Stats'], ['teams', 'Teams']]
 
 export function Header() {
   const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify } = useStore()

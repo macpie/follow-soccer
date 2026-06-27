@@ -60,12 +60,13 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
     if (!code) return code
     if (t.id != null) idToCode[t.id] = code
     if (!TEAMS[code]) {
-      TEAMS[code] = { name: t.shortDisplayName || t.displayName || code, code, g: codeToGroup[code] || '?', c: hex(t.color, '#5F26FC'), c2: hex(t.alternateColor, '#111111') }
+      TEAMS[code] = { name: t.shortDisplayName || t.displayName || code, code, tid: t.id != null ? String(t.id) : null, g: codeToGroup[code] || '?', c: hex(t.color, '#5F26FC'), c2: hex(t.alternateColor, '#111111') }
     } else {
-      // enrich a standings-only stub with real colors/group
+      // enrich a standings-only stub with real colors/group/id
       if (t.color) TEAMS[code].c = hex(t.color, TEAMS[code].c)
       if (t.alternateColor) TEAMS[code].c2 = hex(t.alternateColor, TEAMS[code].c2)
       if (codeToGroup[code]) TEAMS[code].g = codeToGroup[code]
+      if (t.id != null && !TEAMS[code].tid) TEAMS[code].tid = String(t.id)
     }
     if (t.logo) CRESTS[code] = t.logo
     return code
@@ -159,7 +160,8 @@ export async function load() {
       if (t.id != null) idToCode[t.id] = code
       GROUPS[letter] = GROUPS[letter] || []
       if (!GROUPS[letter].includes(code)) GROUPS[letter].push(code)
-      if (!TEAMS[code]) TEAMS[code] = { name: t.displayName || code, code, g: letter, c: '#5F26FC', c2: '#111111' }
+      if (!TEAMS[code]) TEAMS[code] = { name: t.displayName || code, code, tid: t.id != null ? String(t.id) : null, g: letter, c: '#5F26FC', c2: '#111111' }
+      else if (t.id != null && !TEAMS[code].tid) TEAMS[code].tid = String(t.id)
     })
   })
 
@@ -263,7 +265,24 @@ export async function detail(matchId) {
     starters.sort((a, b) => (POS_RANK[(a.position && a.position.abbreviation) || ''] ?? 4) - (POS_RANK[(b.position && b.position.abbreviation) || ''] ?? 4))
     lineups[code] = {
       formation: r.formation || '4-3-3',
-      players: starters.map(p => ({ n: parseInt(p.jersey, 10) || '', name: (p.athlete && (p.athlete.displayName || p.athlete.shortName)) || '' })),
+      players: starters.map(p => {
+        const ath = p.athlete || {}
+        const pos = p.position || {}
+        const dob = ath.dateOfBirth ? new Date(ath.dateOfBirth) : null
+        const now = new Date()
+        const age = dob ? (now.getFullYear() - dob.getFullYear() - (now < new Date(now.getFullYear(), dob.getMonth(), dob.getDate()) ? 1 : 0)) : null
+        const headshot = (ath.headshot && ath.headshot.href) || (ath.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + ath.id + '.png' : null)
+        const nationality = ath.citizenship || (ath.flag && ath.flag.alt) || ''
+        return {
+          n: parseInt(p.jersey, 10) || '',
+          name: ath.displayName || ath.shortName || '',
+          pos: pos.abbreviation || '',
+          posName: pos.displayName || pos.name || pos.abbreviation || '',
+          age,
+          nationality,
+          headshot,
+        }
+      }),
     }
   })
   if (Object.keys(lineups).length) out.lineups = lineups
@@ -319,5 +338,41 @@ export async function detail(matchId) {
   return out
 }
 
-export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail }
+// Full squad for a team via ESPN's per-team roster endpoint (the complete 26-man list,
+// not just a match's starting XI). Returns normalized players + current head coach.
+export async function teamRoster(teamId) {
+  if (!teamId) return null
+  const rj = await getJSON(SITE + '/teams/' + teamId + '/roster')
+
+  // athletes can be flat or grouped into { position, items: [...] } buckets
+  const list = []
+  ;(rj.athletes || []).forEach(a => { if (a && Array.isArray(a.items)) list.push(...a.items); else if (a) list.push(a) })
+
+  const players = list.map(a => {
+    const pos = a.position || {}
+    const status = a.status || {}
+    const headshot = (a.headshot && a.headshot.href) || (a.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + a.id + '.png' : null)
+    const injured = (Array.isArray(a.injuries) && a.injuries.length > 0) || (status.type && status.type !== 'active')
+    return {
+      n: parseInt(a.jersey, 10) || '',
+      name: a.displayName || a.fullName || '',
+      pos: pos.abbreviation || '',
+      posName: pos.displayName || pos.name || pos.abbreviation || '',
+      age: a.age || null,
+      nationality: a.citizenship || (a.flag && a.flag.alt) || '',
+      height: a.displayHeight || '',
+      injured: !!injured,
+      headshot,
+    }
+  })
+
+  // ESPN lists coaches historically (oldest→newest); the last entry is the current one.
+  const coaches = rj.coach || []
+  const cc = coaches[coaches.length - 1]
+  const coach = cc ? [cc.firstName, cc.lastName].filter(Boolean).join(' ') : null
+
+  return { players, coach }
+}
+
+export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster }
 export default WC_ESPN

@@ -24,6 +24,9 @@ export function StoreProvider({ children }) {
   const [sel, setSel] = useState(null)
   const [modalTab, setModalTab] = useState('summary')
   const [filter, setFilter] = useState('all')
+  const [selTeam, setSelTeam] = useState(null)
+  const [teamSquad, setTeamSquad] = useState(null)
+  const [teamSquadLoading, setTeamSquadLoading] = useState(false)
 
   // ---- ESPN data source ----
   const [source, setSource] = useState('loading') // loading | live | error
@@ -95,6 +98,28 @@ export function StoreProvider({ children }) {
   }
   const closeMatch = () => setSel(null)
 
+  const openTeam = (id) => {
+    if (!id || !data) return
+    setSelTeam(id)
+    setTeamSquad(null)
+    const tid = data.TEAMS[id] && data.TEAMS[id].tid
+    if (tid) {
+      setTeamSquadLoading(true)
+      WC_ESPN.teamRoster(tid)
+        .then(sq => setSelTeam(cur => { if (cur === id) { setTeamSquad(sq); setTeamSquadLoading(false) } return cur }))
+        .catch(() => setSelTeam(cur => { if (cur === id) setTeamSquadLoading(false); return cur }))
+    } else {
+      setTeamSquadLoading(false)
+    }
+  }
+  const closeTeam = () => setSelTeam(null)
+
+  const openTeamAndNav = (id) => {
+    setViewState('teams')
+    save({ view: 'teams' })
+    openTeam(id)
+  }
+
   // ---- live data (ESPN) ----
   const startPoll = useCallback(() => {
     clearInterval(pollRef.current)
@@ -154,11 +179,12 @@ export function StoreProvider({ children }) {
   const value = {
     // state
     view, dark, favs, notify, notifySupported, sel, modalTab, filter, source, data, detail,
+    selTeam, teamSquad, teamSquadLoading,
     // accessors
     D, th, t, mScore, standings, thirdRace, detailReady,
     // actions
     setView, toggleDark, toggleFav, toggleNotify, setFilter, setModalTab,
-    openMatch, closeMatch, reload: loadLive,
+    openMatch, closeMatch, openTeam, closeTeam, openTeamAndNav, reload: loadLive,
   }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
