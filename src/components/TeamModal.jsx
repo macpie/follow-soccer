@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store.jsx'
 import { Star } from './atoms.jsx'
-import { txtOn } from '../lib/util.js'
+import { txtOn, liveClock } from '../lib/util.js'
 
 const POS_ORDER = { GK: 0, DF: 1, MF: 2, FW: 3, G: 0, D: 1, M: 2, F: 3 }
 const POS_LABEL = { GK: 'Goalkeeper', DF: 'Defender', MF: 'Midfielder', FW: 'Forward', G: 'Goalkeeper', D: 'Defender', M: 'Midfielder', F: 'Forward' }
@@ -9,6 +9,7 @@ const POS_LABEL = { GK: 'Goalkeeper', DF: 'Defender', MF: 'Midfielder', FW: 'For
 function PlayerCard({ p, teamColor }) {
   const { th } = useStore()
   const [imgErr, setImgErr] = useState(false)
+  const [flagErr, setFlagErr] = useState(false)
 
   return (
     <div style={{
@@ -25,6 +26,8 @@ function PlayerCard({ p, teamColor }) {
         }}>
           {p.headshot && !imgErr
             ? <img src={p.headshot} alt={p.name} onError={() => setImgErr(true)} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : p.flag && !flagErr
+            ? <img src={p.flag} alt={p.nationality || ''} title={p.nationality || ''} onError={() => setFlagErr(true)} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <span style={{ fontWeight: 900, fontSize: 20, color: teamColor }}>{p.n || '?'}</span>
           }
         </div>
@@ -98,7 +101,7 @@ function MatchRow({ m }) {
           : <span style={{ fontWeight: 750, fontSize: 13, color: th.faint }}>{m.time}</span>
         }
         <div style={{ fontSize: 10, fontWeight: 700, color: isLive ? th.live : th.faint, marginTop: 1 }}>
-          {isLive ? (m.minute >= 90 ? "90'+" : m.minute + "'") : played ? 'FT' : m.date}
+          {isLive ? liveClock(m) : played ? 'FT' : m.date}
         </div>
       </div>
 
@@ -140,6 +143,14 @@ export function TeamModal() {
 
   useEffect(() => { setTab('squad') }, [selTeam])
 
+  // Close on Escape while the modal is open.
+  useEffect(() => {
+    if (!selTeam) return
+    const onKey = e => { if (e.key === 'Escape') closeTeam() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selTeam, closeTeam])
+
   if (!selTeam) return null
   const T = t(selTeam)
   if (!T) return null
@@ -150,6 +161,8 @@ export function TeamModal() {
   // Squad: the full 26-man roster from ESPN's per-team roster endpoint
   const players = teamSquad ? teamSquad.players : null
   const coach = teamSquad ? teamSquad.coach : null
+  const record = teamSquad ? teamSquad.record : null
+  const standing = teamSquad ? teamSquad.standing : null
 
   // Schedule: all team matches
   const schedule = D.MATCHES.filter(m => m.h === selTeam || m.a === selTeam)
@@ -195,10 +208,15 @@ export function TeamModal() {
               }
             </div>
 
-            {/* name + group */}
+            {/* name + group + record */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 850, fontSize: 20, letterSpacing: '-0.02em', color: th.tx }}>{T.name}</div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: th.faint, marginTop: 2 }}>Group {T.g}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: th.faint, marginTop: 2 }}>
+                Group {T.g}{record ? ' · ' + record + ' W-D-L' : ''}
+              </div>
+              {standing && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: th.accent, marginTop: 2 }}>{standing}</div>
+              )}
             </div>
 
             {/* follow */}

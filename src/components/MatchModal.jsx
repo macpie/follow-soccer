@@ -1,7 +1,8 @@
+import { useEffect } from 'react'
 import { useStore } from '../store.jsx'
 import { Badge } from './atoms.jsx'
 import { GoalIcon, CardIcon, SubIcon } from './icons.jsx'
-import { txtOn, formationRows } from '../lib/util.js'
+import { txtOn, formationRows, liveClock } from '../lib/util.js'
 
 function Pitch({ tid, lineup, attackUp }) {
   const { th, t, dark } = useStore()
@@ -126,6 +127,15 @@ function FormPills({ form }) {
 
 export function MatchModal() {
   const { th, D, t, sel, modalTab, setModalTab, mScore, detailReady, closeMatch, detail } = useStore()
+
+  // Close on Escape while the modal is open.
+  useEffect(() => {
+    if (!sel) return
+    const onKey = e => { if (e.key === 'Escape') closeMatch() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sel, closeMatch])
+
   if (!sel) return null
   const m = D.MATCHES.find(x => x.id === sel)
   if (!m) return null
@@ -274,7 +284,7 @@ export function MatchModal() {
                 ? <div style={{ fontWeight: 850, fontSize: 38, letterSpacing: '-0.03em', color: th.tx, lineHeight: 1 }}>{s.hs + ' – ' + s.as}</div>
                 : <div style={{ fontWeight: 800, fontSize: 20, color: th.tx }}>{m.time}</div>}
               <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: isLive ? th.live : th.faint }}>
-                {isLive ? (s.minute >= 90 ? "90'+" : s.minute + "'") : (played ? 'Full time' : m.date)}
+                {isLive ? liveClock(s) : (played ? 'Full time' : m.date)}
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>

@@ -77,7 +77,7 @@ export function StoreProvider({ children }) {
   const t = (id) => (D ? D.TEAMS[id] : null)
 
   function mScore(m) {
-    if (m.status === 'LIVE') return { hs: m.hs != null ? m.hs : 0, as: m.as != null ? m.as : 0, status: 'LIVE', minute: m.minute }
+    if (m.status === 'LIVE') return { hs: m.hs != null ? m.hs : 0, as: m.as != null ? m.as : 0, status: 'LIVE', minute: m.minute, clock: m.clock }
     return { hs: m.hs, as: m.as, status: m.status, minute: null }
   }
   const standings = (g) => calcStandings(D, g, mScore)
@@ -108,7 +108,11 @@ export function StoreProvider({ children }) {
     const tid = data.TEAMS[id] && data.TEAMS[id].tid
     if (tid) {
       setTeamSquadLoading(true)
-      WC_ESPN.teamRoster(tid)
+      // recent played/live matches → used to harvest real player headshots
+      const recent = data.MATCHES
+        .filter(m => (m.h === id || m.a === id) && (m.status === 'FT' || m.status === 'LIVE'))
+        .slice(-3).reverse().map(m => m.id)
+      WC_ESPN.teamRoster(tid, recent)
         .then(sq => setSelTeam(cur => { if (cur === id) { setTeamSquad(sq); setTeamSquadLoading(false) } return cur }))
         .catch(() => setSelTeam(cur => { if (cur === id) setTeamSquadLoading(false); return cur }))
     } else {
@@ -124,18 +128,24 @@ export function StoreProvider({ children }) {
   }
 
   // ---- live data (ESPN) ----
+  const refreshScores = useCallback(() => {
+    setData(curData => {
+      if (!curData) return curData
+      WC_ESPN.refreshLive(curData.MATCHES)
+        .then(r => setData(s => (s ? Object.assign({}, s, { MATCHES: r.matches }) : s)))
+        .catch(() => {})
+      return curData
+    })
+  }, [])
+
   const startPoll = useCallback(() => {
     clearInterval(pollRef.current)
     pollRef.current = setInterval(() => {
-      setData(curData => {
-        if (!curData) return curData
-        WC_ESPN.refreshLive(curData.MATCHES)
-          .then(r => setData(s => (s ? Object.assign({}, s, { MATCHES: r.matches }) : s)))
-          .catch(() => {})
-        return curData
-      })
+      // pause polling while the tab is hidden to save requests/battery
+      if (typeof document !== 'undefined' && document.hidden) return
+      refreshScores()
     }, 30000)
-  }, [])
+  }, [refreshScores])
 
   const loadLive = useCallback(() => {
     setSource('loading')
@@ -186,12 +196,20 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     if (!sel || !openMatchLive) return
     const iv = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
       WC_ESPN.detail(sel)
         .then(dt => setSel(cur => { if (cur === sel) setDetail(dt); return cur }))
         .catch(() => {})
     }, 30000)
     return () => clearInterval(iv)
   }, [sel, openMatchLive])
+
+  // Catch up immediately when the tab is refocused (polls are paused while hidden).
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden) refreshScores() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [refreshScores])
 
   const value = {
     // state

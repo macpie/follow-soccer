@@ -1,6 +1,6 @@
 import { useStore } from '../store.jsx'
 import { Wrap, SectionTitle, Pill, Badge } from '../components/atoms.jsx'
-import { dateKey } from '../lib/util.js'
+import { dateKey, liveClock } from '../lib/util.js'
 
 const KO_ROUNDS = [
   { slug: 'round-of-32', title: 'Round of 32' },
@@ -63,7 +63,7 @@ function LiveKoCell({ m }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 10px', background: th.sf2, borderBottom: '1px solid ' + th.bd }}>
         <span style={{ fontSize: 9.5, fontWeight: 700, color: th.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.date + ' · ' + m.time}</span>
         {isLive
-          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9.5, fontWeight: 800, color: th.live, flex: '0 0 auto' }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: th.live, animation: 'wcPulse 1s infinite' }} />{s.minute + "'"}</span>
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9.5, fontWeight: 800, color: th.live, flex: '0 0 auto' }}><span style={{ width: 5, height: 5, borderRadius: '50%', background: th.live, animation: 'wcPulse 1s infinite' }} />{liveClock(s)}</span>
           : <span style={{ fontSize: 9.5, fontWeight: 700, color: th.faint, flex: '0 0 auto' }}>{played ? 'FT' : ''}</span>}
       </div>
       {slot(m.h, m.hKnown, m.hName, s.hs, played && s.hs > s.as, favH)}

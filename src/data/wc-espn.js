@@ -27,7 +27,11 @@ const mapState = s => s === 'in' ? 'LIVE' : s === 'post' ? 'FT' : 'UP'
 const ROUND_LABEL = { 'round-of-32': 'Round of 32', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }
 const hex = (c, fallback) => !c ? fallback : (String(c)[0] === '#' ? c : '#' + c)
 const code3 = t => String((t && t.abbreviation) || '').toUpperCase()
-const minuteOf = ev => { const dc = ev && ev.status && (ev.status.displayClock || (ev.status.type && ev.status.type.shortDetail)); const n = parseInt(String(dc || '').replace(/[^0-9]/g, ''), 10); return Number.isFinite(n) ? n : null }
+// ESPN's ready-made live clock string, e.g. "49'", "45'+4'", "90'+3'", "HT".
+const clockOf = ev => { const st = ev && ev.status; const dc = st && (st.displayClock || (st.type && (st.type.shortDetail || st.type.detail))); const s = String(dc || '').trim(); return s || null }
+// Numeric minute (base + added time) for logic/sorting, e.g. "45'+4'" → 49. Note: a naive
+// digit-strip would turn "45'+4'" into 454, so parse the groups explicitly.
+const minuteOf = ev => { const m = String(clockOf(ev) || '').match(/(\d+)(?:\D+(\d+))?/); if (!m) return null; const base = parseInt(m[1], 10); const extra = m[2] ? parseInt(m[2], 10) : 0; return Number.isFinite(base) ? base + extra : null }
 
 async function getJSON(url) {
   const ctl = new AbortController()
@@ -93,6 +97,7 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
     date: (when && fmtDate(when)) || 'TBD',
     time: (when && fmtTime(when)) || 'TBD',
     minute: status === 'LIVE' ? minuteOf(ev) : null,
+    clock: status === 'LIVE' ? clockOf(ev) : null,
     kickoff: when ? when.getTime() : null, // epoch ms, for match-start alerts
     v, round, stage, _api: true,
   }
@@ -194,7 +199,7 @@ export async function refreshLive(matches) {
     const { home, away } = competitors(c)
     const state = ev.status && ev.status.type && ev.status.type.state
     const score = (comp) => (state === 'pre' || comp.score == null) ? null : Number(comp.score)
-    fresh[String(ev.id)] = { hs: score(home), as: score(away), status: mapState(state), minute: state === 'in' ? minuteOf(ev) : null }
+    fresh[String(ev.id)] = { hs: score(home), as: score(away), status: mapState(state), minute: state === 'in' ? minuteOf(ev) : null, clock: state === 'in' ? clockOf(ev) : null }
   })
   let liveCount = 0
   const patched = matches.map(m => { const nu = fresh[m.id]; if (!nu) return m; if (nu.status === 'LIVE') liveCount++; return Object.assign({}, m, nu) })
@@ -339,10 +344,27 @@ export async function detail(matchId) {
 }
 
 // Full squad for a team via ESPN's per-team roster endpoint (the complete 26-man list,
-// not just a match's starting XI). Returns normalized players + current head coach.
-export async function teamRoster(teamId) {
+// not just a match's starting XI), plus the team's record/standing and current coach.
+// ESPN's WC roster carries no player headshots, so we harvest the real ones it does have
+// from the team's recent match summaries (~15% of players) and key them by athlete id;
+// everyone else falls back to their nationality flag, then jersey number, in the UI.
+export async function teamRoster(teamId, matchIds = []) {
   if (!teamId) return null
-  const rj = await getJSON(SITE + '/teams/' + teamId + '/roster')
+  const [rj, teamJson, ...summaries] = await Promise.all([
+    getJSON(SITE + '/teams/' + teamId + '/roster'),
+    getJSON(SITE + '/teams/' + teamId).catch(() => null),
+    ...matchIds.slice(0, 3).map(id => getJSON(SITE + '/summary?event=' + id).catch(() => null)),
+  ])
+
+  // real headshots by athlete id, gathered from match summaries
+  const headById = {}
+  summaries.forEach(sj => {
+    if (!sj) return
+    ;(sj.rosters || []).forEach(r => (r.roster || []).forEach(p => {
+      const a = p.athlete
+      if (a && a.id != null && a.headshot && a.headshot.href) headById[String(a.id)] = a.headshot.href
+    }))
+  })
 
   // athletes can be flat or grouped into { position, items: [...] } buckets
   const list = []
@@ -351,9 +373,10 @@ export async function teamRoster(teamId) {
   const players = list.map(a => {
     const pos = a.position || {}
     const status = a.status || {}
-    const headshot = (a.headshot && a.headshot.href) || (a.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + a.id + '.png' : null)
     const injured = (Array.isArray(a.injuries) && a.injuries.length > 0) || (status.type && status.type !== 'active')
+    const id = a.id != null ? String(a.id) : null
     return {
+      id,
       n: parseInt(a.jersey, 10) || '',
       name: a.displayName || a.fullName || '',
       pos: pos.abbreviation || '',
@@ -362,7 +385,8 @@ export async function teamRoster(teamId) {
       nationality: a.citizenship || (a.flag && a.flag.alt) || '',
       height: a.displayHeight || '',
       injured: !!injured,
-      headshot,
+      flag: (a.flag && a.flag.href) || null,
+      headshot: (id && headById[id]) || null,
     }
   })
 
@@ -371,7 +395,14 @@ export async function teamRoster(teamId) {
   const cc = coaches[coaches.length - 1]
   const coach = cc ? [cc.firstName, cc.lastName].filter(Boolean).join(' ') : null
 
-  return { players, coach }
+  // record (W-D-L) + standing blurb from the team detail endpoint
+  const T = teamJson && teamJson.team
+  const recItems = (T && T.record && T.record.items) || []
+  const rec = recItems.find(i => i.type === 'total') || recItems[0]
+  const record = (rec && rec.summary) || null
+  const standing = (T && T.standingSummary) || null
+
+  return { players, coach, record, standing }
 }
 
 export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster }

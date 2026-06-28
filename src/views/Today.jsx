@@ -1,12 +1,12 @@
 import { useStore } from '../store.jsx'
 import { Wrap, SectionTitle, LivePill, Badge, Star } from '../components/atoms.jsx'
 import { MatchRow } from '../components/MatchRow.jsx'
-import { todayLabel } from '../lib/util.js'
+import { todayLabel, liveClock } from '../lib/util.js'
 
 function FeaturedLive({ m }) {
   const { th, t, favs, mScore, openMatch } = useStore()
   const s = mScore(m)
-  const ls = { hs: s.hs, as: s.as, minute: s.minute }
+  const ls = { hs: s.hs, as: s.as, minute: s.minute, clock: s.clock }
   const favH = favs.includes(m.h), favA = favs.includes(m.a)
   const fav = favH || favA
   return (
@@ -28,7 +28,7 @@ function FeaturedLive({ m }) {
           <div style={{ fontWeight: 850, fontSize: 46, letterSpacing: '-0.03em', color: th.tx, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{ls.hs + ' – ' + ls.as}</div>
           <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800, color: th.live }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: th.live, animation: 'wcPulse 1s infinite' }} />
-            {ls.minute >= 90 ? "90'+" : ls.minute + "'"}
+            {liveClock(ls)}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 9 }}>

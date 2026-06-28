@@ -8,6 +8,14 @@ export function txtOn(hex) {
   return (0.299 * r + 0.587 * g + 0.114 * b) > 165 ? '#10101A' : '#FFFFFF'
 }
 
+// Display label for a live match clock. Prefers ESPN's ready-made string (e.g. "45'+4'",
+// "90'+3'", "HT"); falls back to the parsed numeric minute. Returns '' when unknown.
+export function liveClock(o) {
+  if (!o) return ''
+  if (o.clock) return o.clock
+  return o.minute != null ? o.minute + "'" : ''
+}
+
 const DW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MO = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 

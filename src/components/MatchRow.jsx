@@ -1,5 +1,6 @@
 import { useStore } from '../store.jsx'
 import { Badge } from './atoms.jsx'
+import { liveClock } from '../lib/util.js'
 
 function TeamMini({ id, align, fav }) {
   const { t, th } = useStore()
@@ -51,7 +52,7 @@ export function MatchRow({ m }) {
         {isLive ? (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 800, color: th.live }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: th.live, animation: 'wcPulse 1s infinite' }} />
-            {s.minute + "'"}
+            {liveClock(s)}
           </span>
         ) : null}
         {scoreBox}
