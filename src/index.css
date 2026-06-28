@@ -19,6 +19,27 @@ body {
 .wc-scroll::-webkit-scrollbar-thumb { background: rgba(128,128,128,.32); border-radius: 9999px; }
 .wc-scroll::-webkit-scrollbar-track { background: transparent; }
 
+/* Header layout — kept in CSS (not inline) so the media query can reflow it on mobile. */
+.wc-hdr { display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; }
+.wc-hdr-brand { flex: 1 1 0; display: flex; justify-content: flex-start; min-width: 0; }
+.wc-hdr-nav { display: flex; gap: 2px; overflow-x: auto; padding: 2px; border-radius: 9999px; flex: 0 1 auto; justify-content: center; }
+.wc-hdr-actions { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Bottom tab bar — mobile only. Hidden on desktop (top pills are used there). */
+.wc-bottomnav { display: none; }
+
+@media (max-width: 640px) {
+  .wc-hdr { flex-wrap: wrap; }
+  .wc-hdr-brand { flex: 1 1 auto; }
+  .wc-hdr-actions { flex: 0 0 auto; }
+  /* drop the top pill nav on mobile; navigation moves to the bottom bar */
+  .wc-hdr-nav { display: none; }
+  .wc-bottomnav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 button { font-family: inherit; }
 input { font-family: inherit; }
 a { color: inherit; }
