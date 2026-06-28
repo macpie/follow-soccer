@@ -21,7 +21,8 @@ const SEASON = 2026
 const SCHEDULE_RANGE = '20260611-20260719' // full tournament window
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const fmtDate = d => (!d || isNaN(d)) ? null : MON[d.getMonth()] + ' ' + d.getDate()
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const fmtDate = d => (!d || isNaN(d)) ? null : DOW[d.getDay()] + ' ' + MON[d.getMonth()] + ' ' + d.getDate()
 const fmtTime = d => { if (!d || isNaN(d)) return null; let h = d.getHours(), m = d.getMinutes(), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap }
 const mapState = s => s === 'in' ? 'LIVE' : s === 'post' ? 'FT' : 'UP'
 const ROUND_LABEL = { 'round-of-32': 'Round of 32', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }

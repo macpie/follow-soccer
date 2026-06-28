@@ -38,12 +38,14 @@ export function formationRows(formation, players) {
   return rows
 }
 
-// Turn a "Mon D" match date (e.g. "Jun 27") into a chronologically sortable number.
-// Unknown/"TBD" dates sort last (return -1).
+// Turn a match date into a chronologically sortable number. Tolerates an optional
+// weekday prefix, e.g. both "Jun 27" and "Mon Jun 27". Unknown/"TBD" dates sort last (-1).
 export function dateKey(d) {
   if (!d || typeof d !== 'string') return -1
-  const [mon, day] = d.split(' ')
-  const mi = MON_ABBR.indexOf(mon)
-  if (mi < 0) return -1
-  return mi * 100 + (parseInt(day, 10) || 0)
+  const parts = d.trim().split(/\s+/)
+  for (let i = 0; i < parts.length - 1; i++) {
+    const mi = MON_ABBR.indexOf(parts[i])
+    if (mi >= 0) return mi * 100 + (parseInt(parts[i + 1], 10) || 0)
+  }
+  return -1
 }
