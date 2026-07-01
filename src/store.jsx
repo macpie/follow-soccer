@@ -34,6 +34,7 @@ export function StoreProvider({ children }) {
   const [source, setSource] = useState('loading') // loading | live | error
   const [data, setData] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [liveSlugs, setLiveSlugs] = useState({}) // { leagueSlug: true } for in-progress leagues
 
   const pollRef = useRef(null)
   // live refs so callbacks always read the current value without re-arming
@@ -231,10 +232,23 @@ export function StoreProvider({ children }) {
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [refreshScores])
 
+  // Which leagues are live right now — drives the live dot in the switcher. Checked on
+  // mount and every 60s (paused while the tab is hidden).
+  useEffect(() => {
+    let on = true
+    const check = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      WC_ESPN.liveLeagues().then(r => { if (on) setLiveSlugs(r) }).catch(() => {})
+    }
+    check()
+    const iv = setInterval(check, 60000)
+    return () => { on = false; clearInterval(iv) }
+  }, [])
+
   const value = {
     // state
     view, dark, favs, notify, notifySupported, sel, modalTab, filter, source, data, detail,
-    selTeam, teamSquad, teamSquadLoading, league, leagues: LEAGUES,
+    selTeam, teamSquad, teamSquadLoading, league, leagues: LEAGUES, liveSlugs,
     // accessors
     D, th, t, mScore, standings, thirdRace, detailReady,
     // actions

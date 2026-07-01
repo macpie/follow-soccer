@@ -12,8 +12,13 @@ const TABS_LEAGUE = [['today', 'Today'], ['matches', 'Matches'], ['table', 'Tabl
 
 // Custom league dropdown: each row shows the league name on the left and its country on
 // the right. (A native <select> can't lay options out this way.)
+function LiveDot() {
+  const { th } = useStore()
+  return <span title="Live now" style={{ width: 7, height: 7, borderRadius: '50%', background: th.live, animation: 'wcPulse 1s infinite', flex: '0 0 auto' }} />
+}
+
 function LeagueMenu() {
-  const { th, dark, league, leagues, setLeague } = useStore()
+  const { th, dark, league, leagues, setLeague, liveSlugs } = useStore()
   const [open, setOpen] = useState(false)
   const cur = leagues.find(l => l.slug === league) || leagues[0]
 
@@ -33,6 +38,7 @@ function LeagueMenu() {
         borderRadius: 9999, padding: '8px 12px', cursor: 'pointer', transition: 'border-color .15s',
       }}>
         <span style={{ flex: 1, textAlign: 'left', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{cur.name}</span>
+        {liveSlugs[cur.slug] && <LiveDot />}
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ color: th.faint, flex: '0 0 auto', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -58,6 +64,7 @@ function LeagueMenu() {
                     padding: '9px 11px', borderRadius: 9, background: on ? th.accentSoft : 'transparent',
                   }}>
                   <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: on ? 800 : 650, color: on ? th.accent : th.tx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</span>
+                  {liveSlugs[l.slug] && <LiveDot />}
                   <span style={{ flex: '0 0 auto', fontSize: 11.5, fontWeight: 600, color: th.faint }}>{l.country}</span>
                 </button>
               )

@@ -256,6 +256,23 @@ export async function refreshLive(matches, slug = DEFAULT_LEAGUE) {
   return { matches: patched, liveCount }
 }
 
+// Which competitions are currently running (in-season / tournament under way) — for the
+// dot in the switcher. A comp is "active" if it has a match within ~12 days of today; that
+// distinguishes an in-progress competition from one that's off-season or on a long break
+// (e.g. a domestic league paused for the World Cup). One light scoreboard request per
+// league, in parallel. Returns { slug: true }.
+export async function liveLeagues() {
+  const out = {}
+  const now = Date.now(), WINDOW = 12 * 86400000
+  await Promise.all(LEAGUES.map(async l => {
+    try {
+      const sb = await getJSON(SITE(l.slug) + '/scoreboard')
+      out[l.slug] = (sb.events || []).some(ev => ev.date && Math.abs(new Date(ev.date).getTime() - now) <= WINDOW)
+    } catch (e) { /* leave undefined */ }
+  }))
+  return out
+}
+
 const POS_RANK = { G: 0, GK: 0, D: 1, DF: 1, M: 2, MF: 2, F: 3, FW: 3 }
 
 // Classify a keyEvent type into the kinds the timeline renders.
@@ -453,5 +470,5 @@ export async function teamRoster(teamId, matchIds = [], slug = DEFAULT_LEAGUE) {
   return { players, record, standing }
 }
 
-export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster, LEAGUES, DEFAULT_LEAGUE }
+export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster, liveLeagues, LEAGUES, DEFAULT_LEAGUE }
 export default WC_ESPN
