@@ -1,11 +1,14 @@
-import { useRef, useState, useLayoutEffect } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect } from 'react'
 import { useStore } from '../store.jsx'
 import { Badge } from '../components/atoms.jsx'
 import { dateKey, liveClock } from '../lib/util.js'
 
-const GAP = 46       // horizontal gap between rounds (room for the connector elbows)
+const GAP = 46         // gap between two expanded rounds (room for the connector elbows)
+const TIGHT_GAP = 12   // gap next to a collapsed round — no elbow room needed, its lines are hidden
 const CELL_W = 208
-const SLOT = 88      // vertical slot height for a cell in the most-populated round
+const COLLAPSED_W = 18 // width of a hidden round's collapsed divider (no label/click target anymore)
+const SLOT = 88        // vertical slot height for a cell in the most-populated round
+const EASE = 'cubic-bezier(.4,0,.2,1)'
 
 // All knockout rounds we know how to render, in order. Only those present in the data show
 // as columns — the WC uses Round of 32 (no play-offs); the Champions League uses play-offs.
@@ -42,9 +45,17 @@ function bracketSorted(slug, matches) {
     .map(x => x.m)
 }
 
-function ColumnHead({ label, color }) {
+// Round header label. Purely informational — filtering is driven by the round-chips row
+// above the bracket. Hidden entirely once its column collapses, so a collapsed round leaves
+// just a blank slim gap rather than a rotated name.
+function ColumnHead({ label, color, collapsed }) {
   return (
-    <div style={{ textAlign: 'center', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color, marginBottom: 8 }}>{label}</div>
+    <div style={{
+      boxSizing: 'border-box', textAlign: 'center',
+      fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
+      color, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%',
+      whiteSpace: 'nowrap', overflow: 'hidden', flex: '0 0 auto', marginBottom: collapsed ? 0 : 8,
+    }}>{collapsed ? '' : label}</div>
   )
 }
 
@@ -76,7 +87,7 @@ function LiveKoCell({ m }) {
       onClick={() => clickable && openMatch(m)}
       style={{
         width: CELL_W, border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf, borderRadius: 12, overflow: 'hidden',
-        textAlign: 'left', font: 'inherit', cursor: clickable ? 'pointer' : 'default', padding: 0,
+        textAlign: 'left', font: 'inherit', cursor: clickable ? 'pointer' : 'default', padding: 0, flex: '0 0 auto',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '3px 9px', background: th.sf2, borderBottom: '1px solid ' + th.bd }}>
@@ -94,8 +105,10 @@ function LiveKoCell({ m }) {
 
 // Lay the rounds out into columns + the connections between cells. A clean single-elimination
 // bracket (WC) is split into two sides that meet at the Final in the centre; anything else
-// (e.g. the two-legged Champions League) stays a single left-to-right flow.
-function buildLayout(rounds, byRound, th) {
+// (e.g. the two-legged Champions League) stays a single left-to-right flow. Every column also
+// carries `roundIdx` — its position in `rounds` (0 = earliest) — so the round filter can hide
+// both mirrored copies of an early round symmetrically.
+function buildLayout(rounds, byRound) {
   const roundMatches = rounds.map(r => byRound[r.slug] || [])
   const counts = roundMatches.map(a => a.length)
   const twoSided = counts.length >= 3 && counts[counts.length - 1] === 1 &&
@@ -105,9 +118,9 @@ function buildLayout(rounds, byRound, th) {
   if (twoSided) {
     const last = rounds.length - 1
     const tag = {}
-    rounds.slice(0, last).forEach((r, ri) => { tag['L' + ri] = columns.length; columns.push({ title: r.title, accent: false, matches: roundMatches[ri].slice(0, roundMatches[ri].length / 2) }) })
-    tag.F = columns.length; columns.push({ title: rounds[last].title, accent: true, matches: roundMatches[last] })
-    for (let ri = last - 1; ri >= 0; ri--) { tag['R' + ri] = columns.length; columns.push({ title: rounds[ri].title, accent: false, matches: roundMatches[ri].slice(roundMatches[ri].length / 2) }) }
+    rounds.slice(0, last).forEach((r, ri) => { tag['L' + ri] = columns.length; columns.push({ title: r.title, accent: false, roundIdx: ri, matches: roundMatches[ri].slice(0, roundMatches[ri].length / 2) }) })
+    tag.F = columns.length; columns.push({ title: rounds[last].title, accent: true, roundIdx: last, matches: roundMatches[last] })
+    for (let ri = last - 1; ri >= 0; ri--) { tag['R' + ri] = columns.length; columns.push({ title: rounds[ri].title, accent: false, roundIdx: ri, matches: roundMatches[ri].slice(roundMatches[ri].length / 2) }) }
     ;['L', 'R'].forEach(side => {
       for (let ri = 0; ri < last; ri++) {
         const fi = tag[side + ri], ti = ri === last - 1 ? tag.F : tag[side + (ri + 1)]
@@ -115,7 +128,7 @@ function buildLayout(rounds, byRound, th) {
       }
     })
   } else {
-    rounds.forEach((r, ri) => columns.push({ title: r.title, accent: ri === rounds.length - 1, matches: roundMatches[ri] }))
+    rounds.forEach((r, ri) => columns.push({ title: r.title, accent: ri === rounds.length - 1, roundIdx: ri, matches: roundMatches[ri] }))
     for (let r = 0; r < columns.length - 1; r++) {
       const cur = columns[r].matches, next = columns[r + 1].matches
       cur.forEach((m, i) => connections.push([[r, i], [r + 1, Math.floor(i * next.length / cur.length)]]))
@@ -137,21 +150,33 @@ export function Bracket() {
   })
   const rounds = KO_ROUNDS.filter(r => byRound[r.slug] && byRound[r.slug].length)
 
-  const { columns, connections } = buildLayout(rounds, byRound, th)
-  // Every column gets the same total height; a cell's slot = SLOT × (maxCells / thisCount),
-  // so each round's cells are centred against the round that feeds them (and never overlap).
+  const { columns, connections } = buildLayout(rounds, byRound)
+
+  // Round filter: collapses every column earlier than the selected round into a slim tab
+  // (on both sides of a two-sided bracket, since a mirrored pair shares the same roundIdx).
+  // filterIdx=0 leaves everything expanded; picking a later round narrows in toward the Final.
+  // Columns stay mounted (never removed) so their headers remain visible + clickable while
+  // collapsed, and so the width/opacity change can transition smoothly instead of just cutting.
+  const [filterIdx, setFilterIdx] = useState(0)
+  useEffect(() => { setFilterIdx(0) }, [D.slug])
+
+  // Every column reserves the same height regardless of the filter, sized off the fullest
+  // round, so collapsing/expanding only animates width — never a vertical jump.
   const maxCells = Math.max(1, ...columns.map(c => c.matches.length))
 
-  // Measure rendered cell positions and draw elbow connectors (works whichever direction
-  // the feeder sits relative to its target, so two-sided brackets converge at the centre).
+  // Measure rendered cell positions and draw elbow connectors (works whichever direction the
+  // feeder sits relative to its target, so two-sided brackets converge at the centre). The
+  // inner track is observed (not the outer scroll clip) so a live-resizing column — mid
+  // collapse/expand transition — keeps the lines sliding in step with it.
   const wrapRef = useRef(null)
+  const trackRef = useRef(null)
   const cellRefs = useRef([])
   cellRefs.current = columns.map(() => [])
   const [conns, setConns] = useState({ w: 0, h: 0, lines: [] })
 
   useLayoutEffect(() => {
-    const wrap = wrapRef.current
-    if (!wrap) return
+    const wrap = wrapRef.current, track = trackRef.current
+    if (!wrap || !track) return
     const compute = () => {
       const wr = wrap.getBoundingClientRect()
       const box = el => { const r = el.getBoundingClientRect(); return { x: r.left - wr.left + wrap.scrollLeft, y: r.top - wr.top + wrap.scrollTop, w: r.width, h: r.height } }
@@ -160,47 +185,80 @@ export function Bracket() {
         const fe = cellRefs.current[fc] && cellRefs.current[fc][fi]
         const te = cellRefs.current[tc] && cellRefs.current[tc][ti]
         if (!fe || !te) return
+        const hidden = columns[fc].roundIdx < filterIdx || columns[tc].roundIdx < filterIdx
         const a = box(fe), b = box(te)
         const ltr = a.x < b.x
         const ax = ltr ? a.x + a.w : a.x, bx = ltr ? b.x : b.x + b.w
         const ay = a.y + a.h / 2, by = b.y + b.h / 2, mx = (ax + bx) / 2
-        lines.push(`M${ax.toFixed(1)},${ay.toFixed(1)} H${mx.toFixed(1)} V${by.toFixed(1)} H${bx.toFixed(1)}`)
+        lines.push({ d: `M${ax.toFixed(1)},${ay.toFixed(1)} H${mx.toFixed(1)} V${by.toFixed(1)} H${bx.toFixed(1)}`, hidden })
       })
-      setConns({ w: wrap.scrollWidth, h: wrap.scrollHeight, lines })
+      // Measured off `track` (not `wrap.scrollWidth`): the SVG overlay is itself sized from
+      // this same state, so reading the wrap's scrollWidth would include the SVG's own
+      // previous (possibly larger) box and could never shrink back down once inflated.
+      setConns({ w: track.scrollWidth, h: track.scrollHeight, lines })
     }
     compute()
-    const ro = new ResizeObserver(compute)
-    ro.observe(wrap)
+    const ro = new ResizeObserver(compute) // fires repeatedly while the track's CSS transition is running
+    ro.observe(track)
     return () => ro.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [D.slug, D.MATCHES.length, columns.length])
+  }, [D.slug, D.MATCHES.length, filterIdx, columns.length])
+
+  // Jump back to the start whenever the filter or competition changes.
+  useEffect(() => { if (wrapRef.current) wrapRef.current.scrollLeft = 0 }, [filterIdx, D.slug])
 
   return (
     // full-bleed (not the 1120px page container) so the whole bracket fits on wide screens
     <div style={{ padding: '26px 22px 90px', animation: 'wcFade .25s ease' }}>
       <div style={{ marginBottom: 18, fontSize: 13, color: th.sub, fontWeight: 550 }}>
-        Knockout fixtures from the live schedule — kickoff times included. Decided matchups show teams and scores; undecided slots fill in as earlier rounds finish. Scroll →
+        Knockout fixtures from the live schedule — kickoff times included. Pick a round to focus on it.
       </div>
+      {rounds.length > 1 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginBottom: 18 }}>
+          {rounds.map((r, ri) => {
+            const on = filterIdx === ri
+            return (
+              <button key={r.slug} onClick={() => setFilterIdx(ri)} style={{
+                border: '1px solid ' + (on ? th.accent : th.bd), background: on ? th.accent : th.sf, color: on ? '#fff' : th.sub,
+                cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 700, padding: '7px 13px', borderRadius: 9999, whiteSpace: 'nowrap',
+                transition: 'background .15s ease, color .15s ease, border-color .15s ease',
+              }}>{r.title}</button>
+            )
+          })}
+        </div>
+      )}
       {columns.length ? (
         <div className="wc-scroll" ref={wrapRef} style={{ overflowX: 'auto', position: 'relative', paddingBottom: 18 }}>
           <svg width={conns.w} height={conns.h} style={{ position: 'absolute', top: 0, left: 0, zIndex: 0, pointerEvents: 'none', overflow: 'visible' }}>
-            {conns.lines.map((d, i) => <path key={i} d={d} fill="none" stroke={th.bd2} strokeWidth={1.5} />)}
+            {conns.lines.map((l, i) => <path key={i} d={l.d} fill="none" stroke={th.bd2} strokeWidth={1.5} style={{ opacity: l.hidden ? 0 : 1, transition: 'opacity .2s ease' }} />)}
           </svg>
-          <div style={{ display: 'flex', gap: GAP, alignItems: 'stretch', position: 'relative', zIndex: 1, width: 'max-content' }}>
-            {columns.map((col, ci) => (
-              <div key={ci} style={{ display: 'flex', flexDirection: 'column', flex: '0 0 auto', alignSelf: 'stretch', width: CELL_W }}>
-                <ColumnHead label={col.title} color={col.accent ? th.accent : th.tx} />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  {col.matches.map((m, mi) => (
-                    <div key={m.id} style={{ height: (SLOT * maxCells) / col.matches.length, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <div ref={el => { cellRefs.current[ci][mi] = el }}>
-                        <LiveKoCell m={m} />
+          <div ref={trackRef} style={{ display: 'flex', alignItems: 'stretch', position: 'relative', zIndex: 1, width: 'max-content' }}>
+            {columns.map((col, ci) => {
+              const collapsed = col.roundIdx < filterIdx
+              // Tighten the gap whenever either neighbour is collapsed — a hidden round's
+              // connector lines are invisible anyway, so no elbow room is needed there. This
+              // is what actually shifts the visible/expanded rounds to the left as rounds hide.
+              const nextCollapsed = ci < columns.length - 1 && columns[ci + 1].roundIdx < filterIdx
+              const marginRight = ci === columns.length - 1 ? 0 : ((collapsed || nextCollapsed) ? TIGHT_GAP : GAP)
+              return (
+                <div key={ci} style={{
+                  display: 'flex', flexDirection: 'column', flex: '0 0 auto', alignSelf: 'stretch',
+                  width: collapsed ? COLLAPSED_W : CELL_W, marginRight, overflow: 'hidden',
+                  transition: `width .32s ${EASE}, margin-right .32s ${EASE}`,
+                }}>
+                  <ColumnHead label={col.title} color={col.accent ? th.accent : th.tx} collapsed={collapsed} />
+                  <div style={{ flex: collapsed ? 0 : 1, display: 'flex', flexDirection: 'column', opacity: collapsed ? 0 : 1, transition: `opacity .22s ${EASE}`, pointerEvents: collapsed ? 'none' : 'auto' }}>
+                    {col.matches.map((m, mi) => (
+                      <div key={m.id} style={{ height: (SLOT * maxCells) / col.matches.length, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div ref={el => { const bucket = cellRefs.current[ci]; if (bucket) bucket[mi] = el }}>
+                          <LiveKoCell m={m} />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       ) : (
