@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store.jsx'
-import { BallMark, SunIcon, MoonIcon, BellIcon, TabIcon } from './icons.jsx'
+import { BallMark, SunIcon, MoonIcon, BellIcon, RefreshIcon, TabIcon } from './icons.jsx'
 
 // Tab sets by competition shape:
 //  - grouped (World Cup): Groups + Bracket
@@ -117,6 +117,12 @@ export function Header() {
         </div>
         <div className="wc-hdr-actions">
           <LeagueMenu />
+          <button onClick={() => window.location.reload()} title="Refresh page" style={{
+            width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: th.tx, flex: '0 0 auto',
+          }}>
+            <RefreshIcon />
+          </button>
           {notifySupported ? (
             <button onClick={toggleNotify} title={notify ? 'Match alerts on — 15 min before your teams play' : 'Turn on match alerts'} style={{
               width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + (notify ? th.accent : th.bd), background: notify ? th.accentSoft : th.sf, cursor: 'pointer',

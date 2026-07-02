@@ -24,6 +24,7 @@ export function StoreProvider({ children }) {
 
   // ---- ephemeral UI ----
   const [sel, setSel] = useState(null)
+  const [sel2, setSel2] = useState(null) // second leg, only set for a two-legged tie's dual modal
   const [modalTab, setModalTab] = useState('summary')
   const [filter, setFilter] = useState('all')
   const [selTeam, setSelTeam] = useState(null)
@@ -34,6 +35,7 @@ export function StoreProvider({ children }) {
   const [source, setSource] = useState('loading') // loading | live | error
   const [data, setData] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [detail2, setDetail2] = useState(null)
   const [liveSlugs, setLiveSlugs] = useState({}) // { leagueSlug: true } for in-progress leagues
 
   const pollRef = useRef(null)
@@ -92,18 +94,31 @@ export function StoreProvider({ children }) {
 
   // Whether the currently-open match modal is showing a live (in-progress) game.
   const openMatchLive = !!(sel && data && (data.MATCHES.find(x => x.id === sel) || {}).status === 'LIVE')
+  const openMatchLive2 = !!(sel2 && data && (data.MATCHES.find(x => x.id === sel2) || {}).status === 'LIVE')
 
   // ---- match modal ----
   // Any match can be opened — played/live show the full match center, upcoming show a
   // preview (form, head-to-head, broadcasts) from the same detail call.
   const openMatch = (m) => {
     if (!m) return
-    setSel(m.id); setModalTab('auto'); setDetail(null)
+    setSel(m.id); setSel2(null); setModalTab('auto'); setDetail(null); setDetail2(null)
     WC_ESPN.detail(m.id, leagueRef.current)
       .then(d => setSel(cur => { if (cur === m.id) setDetail(d); return cur }))
       .catch(() => {})
   }
-  const closeMatch = () => setSel(null)
+  // A two-legged tie opens both legs side by side in one dual modal — closing it (backdrop,
+  // Escape, or either card's × button all funnel through closeMatch) dismisses both at once.
+  const openMatchPair = (m1, m2) => {
+    if (!m1 || !m2) return
+    setSel(m1.id); setSel2(m2.id); setModalTab('auto'); setDetail(null); setDetail2(null)
+    WC_ESPN.detail(m1.id, leagueRef.current)
+      .then(d => setSel(cur => { if (cur === m1.id) setDetail(d); return cur }))
+      .catch(() => {})
+    WC_ESPN.detail(m2.id, leagueRef.current)
+      .then(d => setSel2(cur => { if (cur === m2.id) setDetail2(d); return cur }))
+      .catch(() => {})
+  }
+  const closeMatch = () => { setSel(null); setSel2(null) }
 
   const openTeam = (id) => {
     if (!id || !data) return
@@ -170,7 +185,7 @@ export function StoreProvider({ children }) {
     if (viewsFor(slug).includes(view)) { save({ league: slug }) }
     else { setViewState('today'); save({ league: slug, view: 'today' }) }
     clearInterval(pollRef.current)
-    setSel(null); setSelTeam(null); setDetail(null); setFilter('all')
+    setSel(null); setSel2(null); setSelTeam(null); setDetail(null); setDetail2(null); setFilter('all')
     setData(null)
     loadLive(slug)
   }
@@ -225,6 +240,18 @@ export function StoreProvider({ children }) {
     return () => clearInterval(iv)
   }, [sel, openMatchLive])
 
+  // Same as above, for a two-legged tie's second leg when it's the one still live.
+  useEffect(() => {
+    if (!sel2 || !openMatchLive2) return
+    const iv = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      WC_ESPN.detail(sel2, leagueRef.current)
+        .then(dt => setSel2(cur => { if (cur === sel2) setDetail2(dt); return cur }))
+        .catch(() => {})
+    }, 30000)
+    return () => clearInterval(iv)
+  }, [sel2, openMatchLive2])
+
   // Catch up immediately when the tab is refocused (polls are paused while hidden).
   useEffect(() => {
     const onVis = () => { if (!document.hidden) refreshScores() }
@@ -247,13 +274,13 @@ export function StoreProvider({ children }) {
 
   const value = {
     // state
-    view, dark, favs, notify, notifySupported, sel, modalTab, filter, source, data, detail,
+    view, dark, favs, notify, notifySupported, sel, sel2, modalTab, filter, source, data, detail, detail2,
     selTeam, teamSquad, teamSquadLoading, league, leagues: LEAGUES, liveSlugs,
     // accessors
     D, th, t, mScore, standings, thirdRace, detailReady,
     // actions
     setView, toggleDark, toggleFav, toggleNotify, setFilter, setModalTab, setLeague,
-    openMatch, closeMatch, openTeam, closeTeam, reload: loadLive,
+    openMatch, openMatchPair, closeMatch, openTeam, closeTeam, reload: loadLive,
   }
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }

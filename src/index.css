@@ -32,6 +32,9 @@ body {
 /* Bottom tab bar — mobile only. Hidden on desktop (top pills are used there). */
 .wc-bottomnav { display: none; }
 
+/* A two-legged tie's dual match modal: two cards side by side, stacked on mobile. */
+.wc-tie-modal { display: flex; gap: 14px; align-items: flex-start; }
+
 @media (max-width: 640px) {
   .wc-hdr { flex-wrap: wrap; }
   .wc-hdr-brand { flex: 1 1 auto; }
@@ -42,6 +45,7 @@ body {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
     padding-bottom: env(safe-area-inset-bottom);
   }
+  .wc-tie-modal { flex-direction: column; }
 }
 
 button { font-family: inherit; }

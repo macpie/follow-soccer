@@ -176,9 +176,15 @@ function LiveKoCell({ m }) {
   )
 }
 
+const ddmmyyyy = (ms) => {
+  if (!ms) return ''
+  const d = new Date(ms)
+  return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear()
+}
+
 // ---- two-legged tie, shown as one card with the aggregate score instead of two boxes ----
 function LiveTieCell({ tie }) {
-  const { th, t, favs, mScore, openMatch } = useStore()
+  const { th, t, favs, mScore, openMatchPair } = useStore()
   const [leg1, leg2] = tie.legs
   const teamA = leg1.h, teamB = leg1.a
   const knownA = leg1.hKnown, knownB = leg1.aKnown
@@ -195,7 +201,6 @@ function LiveTieCell({ tie }) {
   const favA = knownA && favs.includes(teamA), favB = knownB && favs.includes(teamB)
   const fav = favA || favB
   const clickable = leg1Played || leg2Played || anyLive || (knownA && knownB)
-  const openTarget = (leg2Played || leg2.status === 'LIVE' || !leg1Played) ? leg2 : leg1
 
   const row = (code, known, label, isFav, agg, legScore, isWinner) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 9px' }}>
@@ -212,13 +217,14 @@ function LiveTieCell({ tie }) {
     </div>
   )
 
-  const footer = bothPlayed
-    ? `L1 ${leg1A}-${leg1B} · L2 ${leg2A}-${leg2B}`
-    : leg1Played ? `L1 ${leg1A}-${leg1B} · L2 ${leg2.date}` : `L1 ${leg1.date} · L2 ${leg2.date}`
+  // Each leg's own kickoff date (DD/MM/YYYY) next to its score, rather than a bare "L1"/"L2"
+  // label, since the two legs can be weeks apart and the date is the more useful anchor.
+  const legFooter = (leg, playedFlag, a, b) => ddmmyyyy(leg.kickoff) + (playedFlag ? ` ${a}-${b}` : '')
+  const footer = `${legFooter(leg1, leg1Played, leg1A, leg1B)} · ${legFooter(leg2, leg2Played, leg2A, leg2B)}`
 
   return (
     <button
-      onClick={() => clickable && openMatch(openTarget)}
+      onClick={() => clickable && openMatchPair(leg1, leg2)}
       style={{
         width: CELL_W, border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf, borderRadius: 12, overflow: 'hidden',
         textAlign: 'left', font: 'inherit', cursor: clickable ? 'pointer' : 'default', padding: 0, flex: '0 0 auto',

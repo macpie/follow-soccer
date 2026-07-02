@@ -89,6 +89,15 @@ export function MoonIcon({ size = 18 }) {
   )
 }
 
+export function RefreshIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 11a8 8 0 0 0-14.3-4.9M4 4v4.5h4.5" />
+      <path d="M4 13a8 8 0 0 0 14.3 4.9M20 20v-4.5h-4.5" />
+    </svg>
+  )
+}
+
 export function BellIcon({ size = 18, filled = false }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">

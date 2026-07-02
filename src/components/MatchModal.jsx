@@ -125,24 +125,19 @@ function FormPills({ form }) {
   )
 }
 
-export function MatchModal() {
-  const { th, D, t, sel, modalTab, setModalTab, mScore, detailReady, closeMatch, detail } = useStore()
-
-  // Close on Escape while the modal is open.
-  useEffect(() => {
-    if (!sel) return
-    const onKey = e => { if (e.key === 'Escape') closeMatch() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [sel, closeMatch])
-
-  if (!sel) return null
-  const m = D.MATCHES.find(x => x.id === sel)
+// One match's full card — score header, tabs, and tab body. Used both for the regular
+// single-match modal and (twice, side by side) for a two-legged tie's dual modal, so it
+// takes its match id and detail object as props rather than reading the store's single
+// `sel`/`detail` pair directly.
+function MatchCard({ matchId, detailObj, narrow }) {
+  const { th, D, t, modalTab, setModalTab, mScore, closeMatch } = useStore()
+  const m = D.MATCHES.find(x => x.id === matchId)
   if (!m) return null
   const s = mScore(m)
   const isLive = m.status === 'LIVE'
   const played = s.hs != null
-  const ready = detailReady(m)
+  const ready = !!(detailObj && detailObj.id === m.id)
+  const detail = ready ? detailObj : null
 
   const events = (detail && detail.events) || null
   const lineups = detail && detail.lineups
@@ -264,49 +259,72 @@ export function MatchModal() {
   }
 
   return (
+    <div style={{ width: '100%', maxWidth: narrow ? 460 : 520, background: th.sf, borderRadius: 22, overflow: 'hidden', boxShadow: th.shadow, animation: 'wcPop .2s ease', flex: narrow ? '1 1 0' : 'none' }}>
+      <div style={{ padding: '18px 22px', borderBottom: '1px solid ' + th.bd, position: 'relative' }}>
+        <button onClick={closeMatch} style={{ position: 'absolute', right: 14, top: 14, width: 32, height: 32, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf2, cursor: 'pointer', color: th.sub, fontSize: 18, lineHeight: 1 }}>×</button>
+        <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: th.faint, letterSpacing: '0.04em' }}>
+          {[(m.g && m.g !== '?') ? 'Group ' + m.g : m.stage, m.v].filter(Boolean).join(' · ') || D.league}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 14, marginTop: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <Badge id={m.h} size={46} />
+            <span style={{ fontWeight: 750, fontSize: 14, color: th.tx, textAlign: 'center' }}>{t(m.h).name}</span>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            {played
+              ? <div style={{ fontWeight: 850, fontSize: 38, letterSpacing: '-0.03em', color: th.tx, lineHeight: 1 }}>{s.hs + ' – ' + s.as}</div>
+              : <div style={{ fontWeight: 800, fontSize: 20, color: th.tx }}>{m.time}</div>}
+            <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: isLive ? th.live : th.faint }}>
+              {isLive ? (liveClock(s) + ' · ' + m.date) : (played ? ('Full time · ' + m.date) : m.date)}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <Badge id={m.a} size={46} />
+            <span style={{ fontWeight: 750, fontSize: 14, color: th.tx, textAlign: 'center' }}>{t(m.a).name}</span>
+          </div>
+        </div>
+        {ready && infoBits.length ? (
+          <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 600, color: th.faint, marginTop: 12, lineHeight: 1.5 }}>{infoBits.join('  ·  ')}</div>
+        ) : null}
+      </div>
+      {ready && tabs.length ? (
+        <div className="wc-scroll" style={{ display: 'flex', gap: 4, padding: '12px 18px 0', justifyContent: 'center', overflowX: 'auto' }}>
+          {tabs.map(([id, label]) => (
+            <button key={id} onClick={() => setModalTab(id)} style={{
+              border: 'none', cursor: 'pointer', font: 'inherit', padding: '9px 14px', borderRadius: 9999, fontSize: 13, whiteSpace: 'nowrap',
+              fontWeight: tab === id ? 800 : 650, color: tab === id ? '#fff' : th.sub, background: tab === id ? th.accent : 'transparent',
+            }}>{label}</button>
+          ))}
+        </div>
+      ) : null}
+      <div style={{ padding: '16px 22px 24px' }}>{body}</div>
+    </div>
+  )
+}
+
+// Backdrop + close-on-Escape wrapper. Renders one card normally, or — for a two-legged tie
+// opened via openMatchPair — two cards side by side (stacked on mobile, see .wc-tie-modal in
+// index.css). Any dismissal (backdrop click, Escape, or either card's × button, which all
+// funnel through closeMatch) closes both at once, since they share one sel/sel2 pair.
+export function MatchModal() {
+  const { sel, sel2, detail, detail2, closeMatch } = useStore()
+
+  useEffect(() => {
+    if (!sel) return
+    const onKey = e => { if (e.key === 'Escape') closeMatch() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sel, closeMatch])
+
+  if (!sel) return null
+  return (
     <div onClick={closeMatch} style={{
       position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(8,6,20,0.55)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 16px', overflowY: 'auto',
     }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, background: th.sf, borderRadius: 22, overflow: 'hidden', boxShadow: th.shadow, animation: 'wcPop .2s ease' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid ' + th.bd, position: 'relative' }}>
-          <button onClick={closeMatch} style={{ position: 'absolute', right: 14, top: 14, width: 32, height: 32, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf2, cursor: 'pointer', color: th.sub, fontSize: 18, lineHeight: 1 }}>×</button>
-          <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: th.faint, letterSpacing: '0.04em' }}>
-            {[(m.g && m.g !== '?') ? 'Group ' + m.g : m.stage, m.v].filter(Boolean).join(' · ') || D.league}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 14, marginTop: 14 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <Badge id={m.h} size={46} />
-              <span style={{ fontWeight: 750, fontSize: 14, color: th.tx, textAlign: 'center' }}>{t(m.h).name}</span>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              {played
-                ? <div style={{ fontWeight: 850, fontSize: 38, letterSpacing: '-0.03em', color: th.tx, lineHeight: 1 }}>{s.hs + ' – ' + s.as}</div>
-                : <div style={{ fontWeight: 800, fontSize: 20, color: th.tx }}>{m.time}</div>}
-              <div style={{ marginTop: 6, fontSize: 12, fontWeight: 800, color: isLive ? th.live : th.faint }}>
-                {isLive ? liveClock(s) : (played ? 'Full time' : m.date)}
-              </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <Badge id={m.a} size={46} />
-              <span style={{ fontWeight: 750, fontSize: 14, color: th.tx, textAlign: 'center' }}>{t(m.a).name}</span>
-            </div>
-          </div>
-          {ready && infoBits.length ? (
-            <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 600, color: th.faint, marginTop: 12, lineHeight: 1.5 }}>{infoBits.join('  ·  ')}</div>
-          ) : null}
-        </div>
-        {ready && tabs.length ? (
-          <div className="wc-scroll" style={{ display: 'flex', gap: 4, padding: '12px 18px 0', justifyContent: 'center', overflowX: 'auto' }}>
-            {tabs.map(([id, label]) => (
-              <button key={id} onClick={() => setModalTab(id)} style={{
-                border: 'none', cursor: 'pointer', font: 'inherit', padding: '9px 14px', borderRadius: 9999, fontSize: 13, whiteSpace: 'nowrap',
-                fontWeight: tab === id ? 800 : 650, color: tab === id ? '#fff' : th.sub, background: tab === id ? th.accent : 'transparent',
-              }}>{label}</button>
-            ))}
-          </div>
-        ) : null}
-        <div style={{ padding: '16px 22px 24px' }}>{body}</div>
+      <div className="wc-tie-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: sel2 ? 960 : 520 }}>
+        <MatchCard matchId={sel} detailObj={detail} narrow={!!sel2} />
+        {sel2 ? <MatchCard matchId={sel2} detailObj={detail2} narrow /> : null}
       </div>
     </div>
   )
