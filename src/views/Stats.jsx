@@ -50,7 +50,7 @@ function CategoryCard({ cat, rows, expanded, onToggle }) {
         )
       })}
       {rows.length > TOP ? (
-        <button onClick={onToggle} style={{
+        <button type="button" onClick={onToggle} style={{
           width: '100%', border: 'none', borderTop: '1px solid ' + th.bd, background: 'transparent', cursor: 'pointer',
           font: 'inherit', fontSize: 12.5, fontWeight: 700, color: th.accent, padding: '10px 0',
         }}>{expanded ? 'Show less' : 'Show all ' + rows.length}</button>

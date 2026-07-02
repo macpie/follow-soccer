@@ -157,16 +157,18 @@ async function loadLeaders(idToCode, slug, year) {
 
   const LEADERS = {}
   LEADER_CATS.forEach(key => {
-    LEADERS[key] = picks[key]
-      .map(p => ({ name: names[p.ref] || '', team: p.team, value: p.value }))
-      .filter(p => p.name && p.team !== 'UNK' && p.value > 0)
+    LEADERS[key] = picks[key].reduce((acc, p) => {
+      const entry = { name: names[p.ref] || '', team: p.team, value: p.value }
+      if (entry.name && entry.team !== 'UNK' && entry.value > 0) acc.push(entry)
+      return acc
+    }, [])
   })
   return LEADERS
 }
 
 const statVal = (stats, name) => { const s = (stats || []).find(x => x.name === name); return s ? Number(s.value) || 0 : 0 }
 
-export async function load(slug = DEFAULT_LEAGUE) {
+async function load(slug = DEFAULT_LEAGUE) {
   // First call yields the season window (for the full fixture list) and current events.
   const sb0 = await getJSON(SITE(slug) + '/scoreboard')
   const season = (sb0.leagues && sb0.leagues[0] && sb0.leagues[0].season) || {}
@@ -241,7 +243,7 @@ export async function load(slug = DEFAULT_LEAGUE) {
   }
 }
 
-export async function refreshLive(matches, slug = DEFAULT_LEAGUE) {
+async function refreshLive(matches, slug = DEFAULT_LEAGUE) {
   const sb = await getJSON(SITE(slug) + '/scoreboard') // current matchday is enough for live scores
   const fresh = {}
   ;(sb.events || []).forEach(ev => {
@@ -261,7 +263,7 @@ export async function refreshLive(matches, slug = DEFAULT_LEAGUE) {
 // distinguishes an in-progress competition from one that's off-season or on a long break
 // (e.g. a domestic league paused for the World Cup). One light scoreboard request per
 // league, in parallel. Returns { slug: true }.
-export async function liveLeagues() {
+async function liveLeagues() {
   const out = {}
   const now = Date.now(), WINDOW = 12 * 86400000
   await Promise.all(LEAGUES.map(async l => {
@@ -299,7 +301,7 @@ function clockMin(clock) {
   return (parseInt(mm[1], 10) || 0) + (mm[2] ? parseInt(mm[2], 10) / 100 : 0)
 }
 
-export async function detail(matchId, slug = DEFAULT_LEAGUE) {
+async function detail(matchId, slug = DEFAULT_LEAGUE) {
   const out = { id: String(matchId), events: null, lineups: null, stats: null, commentary: null, gameInfo: null, form: null, h2h: null, broadcasts: null }
   let sj
   try { sj = await getJSON(SITE(slug) + '/summary?event=' + matchId) } catch (e) { return out }
@@ -310,20 +312,23 @@ export async function detail(matchId, slug = DEFAULT_LEAGUE) {
   const codeFor = (team) => (team && team.id != null && idToCode[team.id]) || teamKey(team)
   const nameOfP = (p) => (p && p.athlete && (p.athlete.displayName || p.athlete.shortName)) || ''
 
-  // full event timeline: goals, cards, subs, penalties, half/full-time markers
+  // full event timeline: goals, cards, subs, penalties, half/full-time markers. Each gets a
+  // stable `id` from its position in ESPN's own event order — assigned before the final sort,
+  // so it stays attached to the same event (a valid React list key) regardless of where that
+  // sort or any later re-render puts it.
   const events = []
-  ;(sj.keyEvents || []).forEach(e => {
+  ;(sj.keyEvents || []).forEach((e, idx) => {
     const info = eventKind(e.type && e.type.text)
     if (!info) return
     const clock = (e.clock && e.clock.displayValue) || ''
     const min = clockMin(clock)
     const parts = e.participants || []
     // markers sort after same-minute play (half-time just after first-half stoppage; full-time last)
-    if (info.kind === 'marker') { events.push({ min: info.note === 'Half-time' ? 45.9 : 999, clock: '', kind: 'marker', note: info.note }); return }
+    if (info.kind === 'marker') { events.push({ id: idx, min: info.note === 'Half-time' ? 45.9 : 999, clock: '', kind: 'marker', note: info.note }); return }
     let name = nameOfP(parts[0]), name2 = ''
     if (info.kind === 'sub') { name = nameOfP(parts[0]); name2 = nameOfP(parts[1]) } // in / out
     else if (info.kind === 'goal') { name2 = nameOfP(parts[1]) } // assist
-    events.push({ min, clock, team: codeFor(e.team), kind: info.kind, note: info.note, name, name2 })
+    events.push({ id: idx, min, clock, team: codeFor(e.team), kind: info.kind, note: info.note, name, name2 })
   })
   if (events.length) out.events = events.sort((a, b) => a.min - b.min)
 
@@ -369,8 +374,13 @@ export async function detail(matchId, slug = DEFAULT_LEAGUE) {
   })
   if (Object.keys(stats).length) out.stats = stats
 
-  // play-by-play commentary (most recent first)
-  const comm = (sj.commentary || []).map(c => ({ time: (c.time && c.time.displayValue) || '', text: c.text || '' })).filter(c => c.text)
+  // play-by-play commentary (most recent first). `id` is the position in ESPN's own feed
+  // order, assigned before the reverse, so it's a stable React list key either way round.
+  const comm = (sj.commentary || []).reduce((acc, c, idx) => {
+    const text = c.text || ''
+    if (text) acc.push({ id: idx, time: (c.time && c.time.displayValue) || '', text })
+    return acc
+  }, [])
   if (comm.length) out.commentary = comm.reverse()
 
   // game info: attendance + referee
@@ -384,11 +394,11 @@ export async function detail(matchId, slug = DEFAULT_LEAGUE) {
     const tid = g.team && g.team.id
     const code = tid != null && idToCode[tid]
     if (!code) return
-    form[code] = (g.events || []).map(ev => {
+    form[code] = (g.events || []).map((ev, idx) => {
       const home = String(ev.homeTeamId) === String(tid)
       const gf = Number(home ? ev.homeTeamScore : ev.awayTeamScore)
       const ga = Number(home ? ev.awayTeamScore : ev.homeTeamScore)
-      return { r: gf > ga ? 'W' : gf < ga ? 'L' : 'D', score: gf + '-' + ga }
+      return { id: idx, r: gf > ga ? 'W' : gf < ga ? 'L' : 'D', score: gf + '-' + ga }
     })
   })
   if (Object.keys(form).length) out.form = form
@@ -396,7 +406,8 @@ export async function detail(matchId, slug = DEFAULT_LEAGUE) {
   // head-to-head history between the two teams
   const h2hEvents = (sj.headToHeadGames && sj.headToHeadGames[0] && sj.headToHeadGames[0].events) || []
   if (h2hEvents.length) {
-    out.h2h = h2hEvents.map(ev => ({
+    out.h2h = h2hEvents.map((ev, idx) => ({
+      id: idx,
       year: fmtYear(ev.gameDate),
       home: idToCode[ev.homeTeamId] || null, away: idToCode[ev.awayTeamId] || null,
       hs: Number(ev.homeTeamScore), as: Number(ev.awayTeamScore),
@@ -404,7 +415,7 @@ export async function detail(matchId, slug = DEFAULT_LEAGUE) {
   }
 
   // broadcasts ("where to watch")
-  const bc = (sj.broadcasts || []).map(x => x.shortName || (x.media && x.media.shortName) || x.name).filter(Boolean)
+  const bc = (sj.broadcasts || []).flatMap(x => { const name = x.shortName || (x.media && x.media.shortName) || x.name; return name ? [name] : [] })
   if (bc.length) out.broadcasts = [...new Set(bc)]
 
   return out
@@ -415,7 +426,7 @@ export async function detail(matchId, slug = DEFAULT_LEAGUE) {
 // ESPN's WC roster carries no player headshots, so we harvest the real ones it does have
 // from the team's recent match summaries (~15% of players) and key them by athlete id;
 // everyone else falls back to their nationality flag, then jersey number, in the UI.
-export async function teamRoster(teamId, matchIds = [], slug = DEFAULT_LEAGUE) {
+async function teamRoster(teamId, matchIds = [], slug = DEFAULT_LEAGUE) {
   if (!teamId) return null
   const [rj, teamJson, ...summaries] = await Promise.all([
     getJSON(SITE(slug) + '/teams/' + teamId + '/roster'),
@@ -471,4 +482,3 @@ export async function teamRoster(teamId, matchIds = [], slug = DEFAULT_LEAGUE) {
 }
 
 export const WC_ESPN = { provider: 'ESPN', load, refreshLive, detail, teamRoster, liveLeagues, LEAGUES, DEFAULT_LEAGUE }
-export default WC_ESPN

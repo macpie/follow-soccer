@@ -5,6 +5,7 @@ import { txtOn, liveClock } from '../lib/util.js'
 
 const POS_ORDER = { GK: 0, DF: 1, MF: 2, FW: 3, G: 0, D: 1, M: 2, F: 3 }
 const POS_LABEL = { GK: 'Goalkeeper', DF: 'Defender', MF: 'Midfielder', FW: 'Forward', G: 'Goalkeeper', D: 'Defender', M: 'Midfielder', F: 'Forward' }
+const TABS = [['squad', 'Squad'], ['schedule', 'Schedule']]
 
 function PlayerCard({ p, teamColor }) {
   const { th } = useStore()
@@ -78,12 +79,14 @@ function MatchRow({ m }) {
   const isLive = m.status === 'LIVE'
 
   return (
-    <div
+    <button
+      type="button"
       onClick={() => { closeTeam(); openMatch(m) }}
+      aria-label={(TH ? TH.name : m.h) + ' vs ' + (TA ? TA.name : m.a)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', width: '100%',
         borderRadius: 10, cursor: 'pointer', transition: 'background .12s',
-        border: '1px solid ' + th.bd,
+        border: '1px solid ' + th.bd, background: 'transparent', font: 'inherit', textAlign: 'left',
       }}
       onMouseEnter={e => e.currentTarget.style.background = th.sf2}
       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -113,7 +116,7 @@ function MatchRow({ m }) {
 
       {/* round label */}
       <span style={{ fontSize: 10, fontWeight: 700, color: th.faint, flex: '0 0 auto', whiteSpace: 'nowrap', display: 'none' }}>{m.stage || (m.g !== '?' ? 'Grp ' + m.g : '')}</span>
-    </div>
+    </button>
   )
 }
 
@@ -138,10 +141,7 @@ function TeamBadge({ id, size }) {
 }
 
 export function TeamModal() {
-  const { th, D, t, selTeam, teamSquad, teamSquadLoading, closeTeam } = useStore()
-  const [tab, setTab] = useState('squad')
-
-  useEffect(() => { setTab('squad') }, [selTeam])
+  const { selTeam, closeTeam } = useStore()
 
   // Close on Escape while the modal is open.
   useEffect(() => {
@@ -152,6 +152,15 @@ export function TeamModal() {
   }, [selTeam, closeTeam])
 
   if (!selTeam) return null
+  // key={selTeam}: a different team fully remounts this, so its `tab` state resets to
+  // 'squad' on its own initial render — no effect needed to force it back afterwards.
+  return <TeamModalContent key={selTeam} selTeam={selTeam} />
+}
+
+function TeamModalContent({ selTeam }) {
+  const { th, D, t, teamSquad, teamSquadLoading, closeTeam } = useStore()
+  const [tab, setTab] = useState('squad')
+
   const T = t(selTeam)
   if (!T) return null
 
@@ -165,8 +174,6 @@ export function TeamModal() {
 
   // Schedule: all team matches
   const schedule = D.MATCHES.filter(m => m.h === selTeam || m.a === selTeam)
-
-  const TABS = [['squad', 'Squad'], ['schedule', 'Schedule']]
 
   // Group players by position
   const grouped = {}
@@ -183,13 +190,13 @@ export function TeamModal() {
       position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(8,6,20,0.6)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 16px 40px', overflowY: 'auto',
     }}>
-      <div onClick={e => e.stopPropagation()} style={{
+      <div role="dialog" aria-modal="true" aria-label={T.name + ' team profile'} onClick={e => e.stopPropagation()} style={{
         width: '100%', maxWidth: 560, background: th.sf, borderRadius: 22,
         overflow: 'hidden', boxShadow: th.shadow, animation: 'wcPop .2s ease',
       }}>
         {/* header */}
         <div style={{ padding: '22px 22px 16px', borderBottom: '1px solid ' + th.bd, position: 'relative' }}>
-          <button onClick={closeTeam} style={{
+          <button type="button" onClick={closeTeam} style={{
             position: 'absolute', right: 14, top: 14, width: 32, height: 32, borderRadius: '50%',
             border: '1px solid ' + th.bd, background: th.sf2, cursor: 'pointer', color: th.sub, fontSize: 18, lineHeight: 1,
           }}>×</button>
@@ -226,7 +233,7 @@ export function TeamModal() {
         {/* tabs */}
         <div className="wc-scroll" style={{ display: 'flex', gap: 4, padding: '12px 18px 0', overflowX: 'auto' }}>
           {TABS.map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} style={{
+            <button key={id} type="button" onClick={() => setTab(id)} style={{
               border: 'none', cursor: 'pointer', font: 'inherit', padding: '9px 18px',
               borderRadius: 9999, fontSize: 13, whiteSpace: 'nowrap',
               fontWeight: tab === id ? 800 : 650,
@@ -258,7 +265,7 @@ export function TeamModal() {
                         {POS_LABEL[posKey] || posKey}
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 8 }}>
-                        {posPlayers.map((p, i) => <PlayerCard key={i} p={p} teamColor={teamColor} />)}
+                        {posPlayers.map(p => <PlayerCard key={p.id || p.name} p={p} teamColor={teamColor} />)}
                       </div>
                     </div>
                   ))}

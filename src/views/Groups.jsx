@@ -1,10 +1,11 @@
 import { useStore } from '../store.jsx'
 import { Wrap, SectionTitle, LivePill, Pill, Badge, Star } from '../components/atoms.jsx'
 
+const HEAD = [['rank', ''], ['team', 'Team'], ['p', 'P'], ['w', 'W'], ['d', 'D'], ['l', 'L'], ['gd', 'GD'], ['pts', 'Pts'], ['fav', '']]
+
 function GroupCard({ g }) {
   const { th, t, favs, openTeam, standings } = useStore()
   const s = standings(g)
-  const head = ['', 'Team', 'P', 'W', 'D', 'L', 'GD', 'Pts', '']
   return (
     <div style={{ border: '1px solid ' + th.bd, background: th.sf, borderRadius: 18, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderBottom: '1px solid ' + th.bd }}>
@@ -14,8 +15,8 @@ function GroupCard({ g }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
-            {head.map((c, i) => (
-              <th key={i} style={{ textAlign: i < 2 ? 'left' : 'center', padding: '7px 5px', fontSize: 10.5, fontWeight: 700, color: th.faint, letterSpacing: '0.03em', width: i === 0 ? 26 : (i === head.length - 1 ? 28 : (i === 1 ? 'auto' : 30)) }}>{c}</th>
+            {HEAD.map(([k, c], i) => (
+              <th key={k} style={{ textAlign: i < 2 ? 'left' : 'center', padding: '7px 5px', fontSize: 10.5, fontWeight: 700, color: th.faint, letterSpacing: '0.03em', width: i === 0 ? 26 : (i === HEAD.length - 1 ? 28 : (i === 1 ? 'auto' : 30)) }}>{c}</th>
             ))}
           </tr>
         </thead>
@@ -24,8 +25,8 @@ function GroupCard({ g }) {
             const band = r.rank <= 2 ? th.good : (r.rank === 3 ? th.warn : 'transparent')
             const fav = favs.includes(r.id)
             return (
-              <tr key={r.id} onClick={() => openTeam(r.id)} style={{ cursor: 'pointer', background: fav ? th.accentSoft : 'transparent', borderTop: '1px solid ' + th.bd }}>
-                <td style={{ padding: 0, width: 4 }}>
+              <tr key={r.id} onClick={() => openTeam(r.id)} aria-label={t(r.id).name + ' details'} style={{ cursor: 'pointer', background: fav ? th.accentSoft : 'transparent', borderTop: '1px solid ' + th.bd }}>
+                <td aria-hidden="true" style={{ padding: 0, width: 4 }}>
                   <div style={{ width: 3, height: 30, background: band, borderRadius: 9999, margin: '0 auto' }} />
                 </td>
                 <td style={{ padding: '7px 5px' }}>

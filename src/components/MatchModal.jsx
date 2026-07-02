@@ -118,8 +118,8 @@ function FormPills({ form }) {
   const color = (r) => r === 'W' ? th.good : r === 'L' ? th.live : th.faint
   return (
     <div style={{ display: 'flex', gap: 4 }}>
-      {form.map((g, i) => (
-        <span key={i} title={g.score} style={{ width: 20, height: 20, borderRadius: 6, background: color(g.r), color: '#fff', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{g.r}</span>
+      {form.map(g => (
+        <span key={g.id} title={g.score} style={{ width: 20, height: 20, borderRadius: 6, background: color(g.r), color: '#fff', fontSize: 11, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{g.r}</span>
       ))}
     </div>
   )
@@ -175,14 +175,14 @@ function MatchCard({ matchId, detailObj, narrow }) {
   } else if (!tab) {
     body = <Msg>{played ? 'No match detail available.' : 'Match preview isn’t available yet.'}</Msg>
   } else if (tab === 'timeline') {
-    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>{events.map((e, i) => <EventRow key={i} e={e} home={e.team === m.h} />)}</div>
+    body = <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>{events.map(e => <EventRow key={e.id} e={e} home={e.team === m.h} />)}</div>
   } else if (tab === 'stats') {
     body = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 2px' }}>
-        {statRows.map((row, i) => {
+        {statRows.map(row => {
           const [label, vh, va, bh, ba] = row
           return (
-            <div key={i}>
+            <div key={label}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 750, color: th.tx, marginBottom: 6 }}>
                 <span>{vh}</span>
                 <span style={{ color: th.sub, fontWeight: 700, fontSize: 11, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{label}</span>
@@ -211,7 +211,7 @@ function MatchCard({ matchId, detailObj, narrow }) {
     body = (
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {commentary.slice(0, 80).map((c, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: i ? '1px solid ' + th.bd : 'none' }}>
+          <div key={c.id} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: i ? '1px solid ' + th.bd : 'none' }}>
             <span style={{ flex: '0 0 auto', width: 34, fontSize: 11.5, fontWeight: 800, color: th.accent }}>{c.time}</span>
             <span style={{ fontSize: 13, color: th.tx, lineHeight: 1.45 }}>{c.text}</span>
           </div>
@@ -238,7 +238,7 @@ function MatchCard({ matchId, detailObj, narrow }) {
           <div>
             <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: th.sub, marginBottom: 10 }}>Head-to-head</div>
             {recent.map((g, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto 1fr', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: i ? '1px solid ' + th.bd : 'none' }}>
+              <div key={g.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr auto 1fr', alignItems: 'center', gap: 8, padding: '7px 0', borderTop: i ? '1px solid ' + th.bd : 'none' }}>
                 <span style={{ fontSize: 11.5, fontWeight: 700, color: th.faint }}>{g.year}</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7, justifyContent: 'flex-end', minWidth: 0 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700, color: th.tx, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.home && t(g.home) ? t(g.home).name : g.home}</span>
@@ -261,7 +261,7 @@ function MatchCard({ matchId, detailObj, narrow }) {
   return (
     <div style={{ width: '100%', maxWidth: narrow ? 460 : 520, background: th.sf, borderRadius: 22, overflow: 'hidden', boxShadow: th.shadow, animation: 'wcPop .2s ease', flex: narrow ? '1 1 0' : 'none' }}>
       <div style={{ padding: '18px 22px', borderBottom: '1px solid ' + th.bd, position: 'relative' }}>
-        <button onClick={closeMatch} style={{ position: 'absolute', right: 14, top: 14, width: 32, height: 32, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf2, cursor: 'pointer', color: th.sub, fontSize: 18, lineHeight: 1 }}>×</button>
+        <button type="button" onClick={closeMatch} aria-label="Close" style={{ position: 'absolute', right: 14, top: 14, width: 32, height: 32, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf2, cursor: 'pointer', color: th.sub, fontSize: 18, lineHeight: 1 }}>×</button>
         <div style={{ textAlign: 'center', fontSize: 11.5, fontWeight: 700, color: th.faint, letterSpacing: '0.04em' }}>
           {[(m.g && m.g !== '?') ? 'Group ' + m.g : m.stage, m.v].filter(Boolean).join(' · ') || D.league}
         </div>
@@ -290,7 +290,7 @@ function MatchCard({ matchId, detailObj, narrow }) {
       {ready && tabs.length ? (
         <div className="wc-scroll" style={{ display: 'flex', gap: 4, padding: '12px 18px 0', justifyContent: 'center', overflowX: 'auto' }}>
           {tabs.map(([id, label]) => (
-            <button key={id} onClick={() => setModalTab(id)} style={{
+            <button key={id} type="button" onClick={() => setModalTab(id)} style={{
               border: 'none', cursor: 'pointer', font: 'inherit', padding: '9px 14px', borderRadius: 9999, fontSize: 13, whiteSpace: 'nowrap',
               fontWeight: tab === id ? 800 : 650, color: tab === id ? '#fff' : th.sub, background: tab === id ? th.accent : 'transparent',
             }}>{label}</button>
@@ -322,7 +322,9 @@ export function MatchModal() {
       position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(8,6,20,0.55)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '40px 16px', overflowY: 'auto',
     }}>
-      <div className="wc-tie-modal" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: sel2 ? 960 : 520 }}>
+      {/* the real dialog surface — role/aria-modal here (not on the backdrop, which just
+          closes the dialog on an outside click and has no content of its own to expose) */}
+      <div className="wc-tie-modal" role="dialog" aria-modal="true" aria-label="Match details" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: sel2 ? 960 : 520 }}>
         <MatchCard matchId={sel} detailObj={detail} narrow={!!sel2} />
         {sel2 ? <MatchCard matchId={sel2} detailObj={detail2} narrow /> : null}
       </div>

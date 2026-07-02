@@ -80,7 +80,10 @@ function groupTies(matches) {
 // real to match against.
 function topQualifiers(D) {
   if (!D.STANDINGS) return []
-  return D.STANDINGS.filter(r => r.pos && r.pos <= 8).map(r => ({ id: 'q-' + r.code, type: 'qualified', code: r.code }))
+  return D.STANDINGS.reduce((acc, r) => {
+    if (r.pos && r.pos <= 8) acc.push({ id: 'q-' + r.code, type: 'qualified', code: r.code })
+    return acc
+  }, [])
 }
 
 // Known team code(s) a tie/qualifier box represents — used to find which tie in the next
@@ -98,6 +101,7 @@ function QualifiedCell({ code }) {
   const fav = favs.includes(code)
   return (
     <button
+      type="button"
       onClick={() => openTeam(code)}
       style={{
         width: CELL_W, border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf, borderRadius: 12, overflow: 'hidden',
@@ -157,6 +161,7 @@ function LiveKoCell({ m }) {
 
   return (
     <button
+      type="button"
       onClick={() => clickable && openMatch(m)}
       style={{
         width: CELL_W, border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf, borderRadius: 12, overflow: 'hidden',
@@ -181,6 +186,10 @@ const ddmmyyyy = (ms) => {
   const d = new Date(ms)
   return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear()
 }
+
+// Each leg's own kickoff date (DD/MM/YYYY) next to its score, rather than a bare "L1"/"L2"
+// label, since the two legs can be weeks apart and the date is the more useful anchor.
+const legFooter = (leg, playedFlag, a, b) => ddmmyyyy(leg.kickoff) + (playedFlag ? ` ${a}-${b}` : '')
 
 // ---- two-legged tie, shown as one card with the aggregate score instead of two boxes ----
 function LiveTieCell({ tie }) {
@@ -217,13 +226,11 @@ function LiveTieCell({ tie }) {
     </div>
   )
 
-  // Each leg's own kickoff date (DD/MM/YYYY) next to its score, rather than a bare "L1"/"L2"
-  // label, since the two legs can be weeks apart and the date is the more useful anchor.
-  const legFooter = (leg, playedFlag, a, b) => ddmmyyyy(leg.kickoff) + (playedFlag ? ` ${a}-${b}` : '')
   const footer = `${legFooter(leg1, leg1Played, leg1A, leg1B)} · ${legFooter(leg2, leg2Played, leg2A, leg2B)}`
 
   return (
     <button
+      type="button"
       onClick={() => clickable && openMatchPair(leg1, leg2)}
       style={{
         width: CELL_W, border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf, borderRadius: 12, overflow: 'hidden',
@@ -338,11 +345,15 @@ function buildLayout(rounds, byRound) {
   const flatConns = []
   for (let r = 0; r < flat.length - 1; r++) {
     const cur = flat[r].matches, next = flat[r + 1].matches
+    // Build the code → next-round-index lookup once per round transition instead of
+    // scanning `next` from scratch for every tie in `cur`.
+    const nextIdxByCode = new Map()
+    next.forEach((t2, j) => { const l2 = t2.legs[0]; if (l2.h) nextIdxByCode.set(l2.h, j); if (l2.a) nextIdxByCode.set(l2.a, j) })
     cur.forEach((tie, i) => {
       const codes = tieCodes(tie)
       if (!codes.length) return
-      const j = next.findIndex(t2 => { const l2 = t2.legs[0]; return codes.includes(l2.h) || codes.includes(l2.a) })
-      if (j >= 0) flatConns.push([[r, i], [r + 1, j]])
+      const j = codes.map(c => nextIdxByCode.get(c)).find(v => v != null)
+      if (j != null) flatConns.push([[r, i], [r + 1, j]])
     })
   }
   reorderForConvergence(flat, flatConns)
@@ -386,7 +397,14 @@ export function Bracket() {
   // Columns stay mounted (never removed) so their headers remain visible + clickable while
   // collapsed, and so the width/opacity change can transition smoothly instead of just cutting.
   const [filterIdx, setFilterIdx] = useState(0)
-  useEffect(() => { setFilterIdx(0) }, [D.slug])
+  const wrapRef = useRef(null)
+  // Reset the filter — and, in the same pass, the horizontal scroll — right where the
+  // competition change actually happens, instead of a second effect that only fires because
+  // this one just changed filterIdx: chaining them adds an extra commit for no benefit.
+  useEffect(() => {
+    setFilterIdx(0)
+    if (wrapRef.current) wrapRef.current.scrollLeft = 0
+  }, [D.slug])
 
   // Every column reserves the same height regardless of the filter, sized off the fullest
   // round, so collapsing/expanding only animates width — never a vertical jump.
@@ -396,7 +414,6 @@ export function Bracket() {
   // feeder sits relative to its target, so two-sided brackets converge at the centre). The
   // inner track is observed (not the outer scroll clip) so a live-resizing column — mid
   // collapse/expand transition — keeps the lines sliding in step with it.
-  const wrapRef = useRef(null)
   const trackRef = useRef(null)
   const cellRefs = useRef([])
   cellRefs.current = columns.map(() => [])
@@ -446,11 +463,10 @@ export function Bracket() {
     ro.observe(track)
     ro.observe(wrap)
     return () => ro.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-doctor/exhaustive-deps -- columns/connections are cheap
+    // proxies (length/filterIdx/slug) deliberately used instead so this doesn't re-run (and
+    // re-measure) on every render just because buildLayout returns new array references
   }, [D.slug, D.MATCHES.length, filterIdx, columns.length])
-
-  // Jump back to the start whenever the filter or competition changes.
-  useEffect(() => { if (wrapRef.current) wrapRef.current.scrollLeft = 0 }, [filterIdx, D.slug])
 
   return (
     // full-bleed (not the 1120px page container) so the whole bracket fits on wide screens
@@ -463,7 +479,7 @@ export function Bracket() {
           {rounds.map((r, ri) => {
             const on = filterIdx === ri
             return (
-              <button key={r.slug} onClick={() => setFilterIdx(ri)} style={{
+              <button key={r.slug} type="button" onClick={() => { setFilterIdx(ri); if (wrapRef.current) wrapRef.current.scrollLeft = 0 }} style={{
                 border: '1px solid ' + (on ? th.accent : th.bd), background: on ? th.accent : th.sf, color: on ? '#fff' : th.sub,
                 cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 700, padding: '7px 13px', borderRadius: 9999, whiteSpace: 'nowrap',
                 transition: 'background .15s ease, color .15s ease, border-color .15s ease',

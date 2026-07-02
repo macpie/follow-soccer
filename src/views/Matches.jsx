@@ -36,7 +36,7 @@ export function Matches() {
   const chip = (val, label) => {
     const on = filter === val
     return (
-      <button key={val} onClick={() => setFilter(val)} style={{
+      <button key={val} type="button" onClick={() => setFilter(val)} style={{
         border: '1px solid ' + (on ? th.accent : th.bd), background: on ? th.accent : th.sf, color: on ? '#fff' : th.sub,
         cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 700, padding: '7px 13px', borderRadius: 9999, whiteSpace: 'nowrap',
       }}>{label}</button>

@@ -33,7 +33,7 @@ export default function App() {
           <div style={{ fontSize: 14, color: th.sub, maxWidth: 360, lineHeight: 1.5 }}>
             World Cup data comes live from ESPN. The request failed — check your connection and try again.
           </div>
-          <button onClick={reload} style={{ marginTop: 4, padding: '11px 20px', borderRadius: 9999, border: 'none', background: th.accent, color: '#fff', fontWeight: 750, fontSize: 14, cursor: 'pointer' }}>Retry</button>
+          <button type="button" onClick={reload} style={{ marginTop: 4, padding: '11px 20px', borderRadius: 9999, border: 'none', background: th.accent, color: '#fff', fontWeight: 750, fontSize: 14, cursor: 'pointer' }}>Retry</button>
         </Splash>
       )
     }

@@ -10,7 +10,7 @@ function FeaturedLive({ m }) {
   const favH = favs.includes(m.h), favA = favs.includes(m.a)
   const fav = favH || favA
   return (
-    <button onClick={() => openMatch(m)} style={{
+    <button type="button" onClick={() => openMatch(m)} style={{
       width: '100%', font: 'inherit', textAlign: 'left', cursor: 'pointer', border: '1px solid ' + (fav ? th.accent : th.bd), background: fav ? th.accentSoft : th.sf,
       borderRadius: 20, padding: '22px 26px', position: 'relative', overflow: 'hidden', boxShadow: th.shadow,
     }}>
@@ -57,7 +57,7 @@ function FavCard({ id }) {
         <Star id={id} size={17} />
       </div>
       {m ? (
-        <button onClick={() => openMatch(m)} style={{
+        <button type="button" onClick={() => openMatch(m)} style={{
           width: '100%', font: 'inherit', textAlign: 'left', cursor: 'pointer',
           border: 'none', background: th.sf2, borderRadius: 11, padding: '9px 11px',
         }}>
@@ -110,8 +110,8 @@ export function Today() {
           <div style={{ fontSize: 34, fontWeight: 850, letterSpacing: '-0.03em', margin: '10px 0 4px', lineHeight: 1.04 }}>{todayLabel()}</div>
           <div style={{ fontSize: 15, opacity: 0.85, fontWeight: 550, maxWidth: 520 }}>{heroSub}</div>
           <div style={{ display: 'flex', gap: 26, marginTop: 22, flexWrap: 'wrap' }}>
-            {heroStats.map(([n, l], i) => (
-              <div key={i}>
+            {heroStats.map(([n, l]) => (
+              <div key={l}>
                 <div style={{ fontSize: 26, fontWeight: 850, letterSpacing: '-0.02em' }}>{n}</div>
                 <div style={{ fontSize: 11.5, fontWeight: 650, opacity: 0.8, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{l}</div>
               </div>
@@ -151,7 +151,7 @@ export function Today() {
       {/* upcoming */}
       <div>
         <SectionTitle label="Up next" right={
-          <button onClick={() => setView('matches')} style={{ border: 'none', background: 'transparent', color: th.accent, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>All matches →</button>
+          <button type="button" onClick={() => setView('matches')} style={{ border: 'none', background: 'transparent', color: th.accent, fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>All matches →</button>
         } />
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))', gap: 10 }}>
           {upcoming.map(m => <MatchRow key={m.id} m={m} />)}

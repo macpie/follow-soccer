@@ -11,6 +11,20 @@ function loadPrefs() {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') } catch (e) { return {} }
 }
 
+function mScore(m) {
+  if (m.status === 'LIVE') return { hs: m.hs != null ? m.hs : 0, as: m.as != null ? m.as : 0, status: 'LIVE', minute: m.minute, clock: m.clock }
+  return { hs: m.hs, as: m.as, status: m.status, minute: null }
+}
+
+// Which tabs each competition shape exposes (the World Cup has groups + bracket, the
+// Champions League a bracket + table, plain leagues just a table). Used to reset the view
+// when switching to a league where the current tab doesn't exist.
+function viewsFor(slug) {
+  if (slug === 'fifa.world') return ['today', 'matches', 'bracket', 'groups', 'stats', 'teams']
+  if (slug === 'uefa.champions') return ['today', 'matches', 'bracket', 'table', 'stats', 'teams']
+  return ['today', 'matches', 'table', 'stats', 'teams']
+}
+
 export function StoreProvider({ children }) {
   const saved = loadPrefs()
 
@@ -43,7 +57,8 @@ export function StoreProvider({ children }) {
   const dataRef = useRef(data); dataRef.current = data
   const favsRef = useRef(favs); favsRef.current = favs
   const leagueRef = useRef(league); leagueRef.current = league
-  const notifiedRef = useRef(new Set())
+  const notifiedRef = useRef(null)
+  if (notifiedRef.current === null) notifiedRef.current = new Set() // lazy init — avoid allocating a Set every render
 
   const save = useCallback((patch) => {
     const next = Object.assign({ view, dark, favs, notify, league }, patch)
@@ -82,10 +97,6 @@ export function StoreProvider({ children }) {
   const th = theme(dark)
   const t = (id) => (D ? D.TEAMS[id] : null)
 
-  function mScore(m) {
-    if (m.status === 'LIVE') return { hs: m.hs != null ? m.hs : 0, as: m.as != null ? m.as : 0, status: 'LIVE', minute: m.minute, clock: m.clock }
-    return { hs: m.hs, as: m.as, status: m.status, minute: null }
-  }
   const standings = (g) => calcStandings(D, g, mScore)
   const thirdRace = () => calcThirdRace(D, mScore)
 
@@ -168,15 +179,6 @@ export function StoreProvider({ children }) {
       .catch(() => { if (leagueRef.current === lg) setSource('error') })
   }, [startPoll])
 
-  // Which tabs each competition shape exposes (the World Cup has groups + bracket, the
-  // Champions League a bracket + table, plain leagues just a table). Used to reset the view
-  // when switching to a league where the current tab doesn't exist.
-  const viewsFor = (slug) => {
-    if (slug === 'fifa.world') return ['today', 'matches', 'bracket', 'groups', 'stats', 'teams']
-    if (slug === 'uefa.champions') return ['today', 'matches', 'bracket', 'table', 'stats', 'teams']
-    return ['today', 'matches', 'table', 'stats', 'teams']
-  }
-
   // Switch competitions: persist the choice, clear the old dataset/modals, and reload.
   const setLeague = (slug) => {
     if (slug === leagueRef.current || !LEAGUES.some(l => l.slug === slug)) return
@@ -194,7 +196,7 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     loadLive()
     return () => clearInterval(pollRef.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-doctor/exhaustive-deps -- loadLive is a stable useCallback chain; this must run once on mount only
   }, [])
 
   // Match alerts: while enabled, check every 30s and fire a notification once a followed

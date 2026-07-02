@@ -40,13 +40,13 @@ export function Teams() {
           style={{
             width: '100%', boxSizing: 'border-box', padding: '11px 36px 11px 38px',
             borderRadius: 12, border: '1px solid ' + th.bd, background: th.sf, color: th.tx,
-            fontSize: 14, fontWeight: 600, outline: 'none', font: 'inherit',
+            fontSize: 14, fontWeight: 600, font: 'inherit',
           }}
           onFocus={e => e.currentTarget.style.borderColor = th.accent}
           onBlur={e => e.currentTarget.style.borderColor = th.bd}
         />
         {q && (
-          <button onClick={() => setQ('')} aria-label="Clear search" style={{
+          <button type="button" onClick={() => setQ('')} aria-label="Clear search" style={{
             position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
             width: 24, height: 24, borderRadius: '50%', border: 'none', background: th.sf2,
             cursor: 'pointer', color: th.sub, fontSize: 15, lineHeight: 1,
@@ -72,9 +72,16 @@ function TeamRow({ id, onOpen }) {
   const crest = D.CRESTS && D.CRESTS[id]
   const on = favs.includes(id)
 
+  // Not a real <button>: it wraps the follow <Star>, which is itself a <button>, and
+  // nesting interactive controls inside a native button is invalid HTML — role="button" +
+  // a key handler gives the same keyboard/AT affordance without that conflict.
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(id)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(id) } }}
+      aria-label={T.name}
       style={{
         display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
         borderRadius: 12, cursor: 'pointer', transition: 'background .12s',
@@ -113,3 +120,4 @@ function TeamRow({ id, onOpen }) {
     </div>
   )
 }
+

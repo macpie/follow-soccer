@@ -44,8 +44,10 @@ export function Star({ id, size = 16 }) {
   const on = favs.includes(id)
   return (
     <button
+      type="button"
       onClick={(e) => { e.stopPropagation(); toggleFav(id) }}
       title={on ? 'Following' : 'Follow'}
+      aria-label={on ? 'Following' : 'Follow'}
       style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 2, lineHeight: 0, display: 'inline-flex' }}
     >
       <svg width={size} height={size} viewBox="0 0 24 24" fill={on ? th.accent : 'none'} stroke={on ? th.accent : th.faint} strokeWidth={2} strokeLinejoin="round">

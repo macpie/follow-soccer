@@ -31,7 +31,7 @@ function LeagueMenu() {
 
   return (
     <div style={{ position: 'relative', flex: '0 1 auto', minWidth: 0 }}>
-      <button onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open} style={{
+      <button type="button" onClick={() => setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open} style={{
         display: 'inline-flex', alignItems: 'center', gap: 7, maxWidth: 180, width: '100%',
         font: 'inherit', fontSize: 13, fontWeight: 700, color: th.tx,
         background: open ? th.sf2 : th.sf, border: '1px solid ' + (open ? th.accent : th.bd),
@@ -46,7 +46,10 @@ function LeagueMenu() {
 
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+          {/* invisible dismiss scrim — Escape already closes the menu for keyboard users, so
+              this is mouse/touch-only and hidden from assistive tech rather than exposed as
+              an unlabeled interactive control */}
+          <div aria-hidden="true" onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
           <div role="listbox" className="wc-league-menu" style={{
             zIndex: 61, width: 250, maxWidth: '80vw',
             background: th.sf, border: '1px solid ' + th.bd, borderRadius: 14, padding: 5,
@@ -55,7 +58,7 @@ function LeagueMenu() {
             {leagues.map(l => {
               const on = l.slug === league
               return (
-                <button key={l.slug} role="option" aria-selected={on} onClick={() => { setLeague(l.slug); setOpen(false) }}
+                <button key={l.slug} type="button" role="option" aria-selected={on} onClick={() => { setLeague(l.slug); setOpen(false) }}
                   onMouseEnter={e => { if (!on) e.currentTarget.style.background = th.sf2 }}
                   onMouseLeave={e => { if (!on) e.currentTarget.style.background = 'transparent' }}
                   style={{
@@ -83,10 +86,10 @@ export function Header() {
   const navBtn = ([id, label]) => {
     const on = view === id
     return (
-      <button key={id} onClick={() => setView(id)} style={{
+      <button key={id} type="button" onClick={() => setView(id)} style={{
         border: 'none', cursor: 'pointer', font: 'inherit', padding: '8px 14px', borderRadius: 9999, whiteSpace: 'nowrap',
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        fontSize: 14, fontWeight: on ? 750 : 600, color: on ? '#fff' : th.sub, background: on ? th.accent : 'transparent', transition: 'all .15s',
+        fontSize: 14, fontWeight: on ? 750 : 600, color: on ? '#fff' : th.sub, background: on ? th.accent : 'transparent', transition: 'color .15s ease, background .15s ease',
       }}>
         <TabIcon id={id} size={15} />
         {label}
@@ -98,7 +101,7 @@ export function Header() {
     <>
     <div style={{
       position: 'sticky', top: 0, zIndex: 40, background: dark ? 'rgba(8,8,12,0.82)' : 'rgba(255,255,255,0.82)',
-      backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', borderBottom: '1px solid ' + th.bd,
+      backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', borderBottom: '1px solid ' + th.bd,
     }}>
       <div className="wc-hdr" style={{ maxWidth: 1120, margin: '0 auto', padding: '12px 22px' }}>
         <div className="wc-hdr-brand">
@@ -117,21 +120,21 @@ export function Header() {
         </div>
         <div className="wc-hdr-actions">
           <LeagueMenu />
-          <button onClick={() => window.location.reload()} title="Refresh page" style={{
+          <button type="button" onClick={() => window.location.reload()} title="Refresh page" aria-label="Refresh page" style={{
             width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf, cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: th.tx, flex: '0 0 auto',
           }}>
             <RefreshIcon />
           </button>
           {notifySupported ? (
-            <button onClick={toggleNotify} title={notify ? 'Match alerts on — 15 min before your teams play' : 'Turn on match alerts'} style={{
+            <button type="button" onClick={toggleNotify} title={notify ? 'Match alerts on — 15 min before your teams play' : 'Turn on match alerts'} aria-label={notify ? 'Match alerts on' : 'Turn on match alerts'} style={{
               width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + (notify ? th.accent : th.bd), background: notify ? th.accentSoft : th.sf, cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: notify ? th.accent : th.tx, flex: '0 0 auto',
             }}>
               <BellIcon filled={notify} />
             </button>
           ) : null}
-          <button onClick={toggleDark} title="Toggle theme" style={{
+          <button type="button" onClick={toggleDark} title="Toggle theme" aria-label="Toggle theme" style={{
             width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf, cursor: 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: th.tx, flex: '0 0 auto',
           }}>
@@ -144,12 +147,12 @@ export function Header() {
     {/* Mobile bottom tab bar (hidden on desktop via CSS) */}
     <nav className="wc-bottomnav" style={{
       background: dark ? 'rgba(8,8,12,0.94)' : 'rgba(255,255,255,0.96)',
-      borderTop: '1px solid ' + th.bd, backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+      borderTop: '1px solid ' + th.bd, backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
     }}>
       {tabs.map(([id, label]) => {
         const on = view === id
         return (
-          <button key={id} onClick={() => setView(id)} aria-label={label} style={{
+          <button key={id} type="button" onClick={() => setView(id)} aria-label={label} style={{
             flex: 1, border: 'none', background: 'transparent', cursor: 'pointer', font: 'inherit',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '8px 2px 7px',
             color: on ? th.accent : th.sub,

@@ -7,7 +7,8 @@ export function standings(D, g, score) {
   const tab = {}
   ids.forEach(id => { tab[id] = { id, P: 0, W: 0, D: 0, L: 0, GF: 0, GA: 0, Pts: 0 } })
   let finished = 0, total = 0
-  D.MATCHES.filter(m => m.g === g).forEach(m => {
+  D.MATCHES.forEach(m => {
+    if (m.g !== g) return
     total++
     const s = score(m)
     let hs = s.hs, as = s.as
