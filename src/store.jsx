@@ -52,7 +52,6 @@ export function StoreProvider({ children }) {
   const [detail2, setDetail2] = useState(null)
   const [liveSlugs, setLiveSlugs] = useState({}) // { leagueSlug: true } for in-progress leagues
 
-  const pollRef = useRef(null)
   // live refs so callbacks always read the current value without re-arming
   const dataRef = useRef(data); dataRef.current = data
   const favsRef = useRef(favs); favsRef.current = favs
@@ -65,7 +64,9 @@ export function StoreProvider({ children }) {
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(next)) } catch (e) {}
   }, [view, dark, favs, notify, league])
 
-  const setView = (v) => { setViewState(v); save({ view: v }) }
+  // Switching tabs also grabs fresh scores — a lightweight score-only refresh (not a full
+  // loadLive), so there's no loading flicker, just up-to-date numbers.
+  const setView = (v) => { setViewState(v); save({ view: v }); refreshScores() }
   const toggleDark = () => { const d = !dark; setDark(d); save({ dark: d }) }
   const toggleFav = (id) => {
     setFavs(prev => {
@@ -152,32 +153,24 @@ export function StoreProvider({ children }) {
   const closeTeam = () => setSelTeam(null)
 
   // ---- live data (ESPN) ----
+  // Reads the latest data via dataRef (kept in sync below) instead of a setData updater, since
+  // the network call is a side effect — React 18 StrictMode double-invokes updater functions in
+  // dev specifically to catch that kind of impurity, which was silently doubling this request.
   const refreshScores = useCallback(() => {
-    setData(curData => {
-      if (!curData) return curData
-      WC_ESPN.refreshLive(curData.MATCHES, leagueRef.current)
-        .then(r => setData(s => (s ? Object.assign({}, s, { MATCHES: r.matches }) : s)))
-        .catch(() => {})
-      return curData
-    })
+    const curData = dataRef.current
+    if (!curData) return
+    WC_ESPN.refreshLive(curData.MATCHES, leagueRef.current)
+      .then(r => setData(s => (s ? Object.assign({}, s, { MATCHES: r.matches }) : s)))
+      .catch(() => {})
   }, [])
-
-  const startPoll = useCallback(() => {
-    clearInterval(pollRef.current)
-    pollRef.current = setInterval(() => {
-      // pause polling while the tab is hidden to save requests/battery
-      if (typeof document !== 'undefined' && document.hidden) return
-      refreshScores()
-    }, 30000)
-  }, [refreshScores])
 
   const loadLive = useCallback((slug) => {
     const lg = slug || leagueRef.current
     setSource('loading')
     WC_ESPN.load(lg)
-      .then(d => { if (leagueRef.current !== lg) return; setData(d); setSource('live'); startPoll() })
+      .then(d => { if (leagueRef.current !== lg) return; setData(d); setSource('live') })
       .catch(() => { if (leagueRef.current === lg) setSource('error') })
-  }, [startPoll])
+  }, [])
 
   // Switch competitions: persist the choice, clear the old dataset/modals, and reload.
   const setLeague = (slug) => {
@@ -186,7 +179,6 @@ export function StoreProvider({ children }) {
     setLeagueState(slug)
     if (viewsFor(slug).includes(view)) { save({ league: slug }) }
     else { setViewState('today'); save({ league: slug, view: 'today' }) }
-    clearInterval(pollRef.current)
     setSel(null); setSel2(null); setSelTeam(null); setDetail(null); setDetail2(null); setFilter('all')
     setData(null)
     loadLive(slug)
@@ -195,7 +187,6 @@ export function StoreProvider({ children }) {
   // ---- effects ----
   useEffect(() => {
     loadLive()
-    return () => clearInterval(pollRef.current)
     // eslint-disable-next-line react-doctor/exhaustive-deps -- loadLive is a stable useCallback chain; this must run once on mount only
   }, [])
 
@@ -254,11 +245,17 @@ export function StoreProvider({ children }) {
     return () => clearInterval(iv)
   }, [sel2, openMatchLive2])
 
-  // Catch up immediately when the tab is refocused (polls are paused while hidden).
+  // No background poll — scores instead refresh on tab switch (see setView) and whenever the
+  // app comes back into view: returning to this browser tab (visibilitychange) or refocusing
+  // the browser window itself (focus), e.g. after switching away to another app and back.
   useEffect(() => {
-    const onVis = () => { if (!document.hidden) refreshScores() }
-    document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
+    const onRefocus = () => { if (!document.hidden) refreshScores() }
+    document.addEventListener('visibilitychange', onRefocus)
+    window.addEventListener('focus', onRefocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onRefocus)
+      window.removeEventListener('focus', onRefocus)
+    }
   }, [refreshScores])
 
   // Which leagues are live right now — drives the live dot in the switcher. Checked on

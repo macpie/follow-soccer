@@ -80,7 +80,8 @@ function LeagueMenu() {
 }
 
 export function Header() {
-  const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify } = useStore()
+  const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify, source, reload } = useStore()
+  const refreshing = source === 'loading'
   const tabs = D.grouped ? TABS_GROUPED : (D.bracket ? TABS_CUP : TABS_LEAGUE)
 
   const navBtn = ([id, label]) => {
@@ -120,11 +121,13 @@ export function Header() {
         </div>
         <div className="wc-hdr-actions">
           <LeagueMenu />
-          <button type="button" onClick={() => window.location.reload()} title="Refresh page" aria-label="Refresh page" style={{
-            width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf, cursor: 'pointer',
+          <button type="button" onClick={() => !refreshing && reload()} disabled={refreshing} title="Refresh live data" aria-label="Refresh live data" style={{
+            width: 38, height: 38, borderRadius: '50%', border: '1px solid ' + th.bd, background: th.sf, cursor: refreshing ? 'default' : 'pointer',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: th.tx, flex: '0 0 auto',
           }}>
-            <RefreshIcon />
+            <span style={{ display: 'inline-flex', animation: refreshing ? 'wcSpin .7s linear infinite' : 'none' }}>
+              <RefreshIcon />
+            </span>
           </button>
           {notifySupported ? (
             <button type="button" onClick={toggleNotify} title={notify ? 'Match alerts on — 15 min before your teams play' : 'Turn on match alerts'} aria-label={notify ? 'Match alerts on' : 'Turn on match alerts'} style={{
