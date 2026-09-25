@@ -3,6 +3,7 @@ import { useStore } from '../store.jsx'
 import { Wrap } from '../components/atoms.jsx'
 import { MatchRow } from '../components/MatchRow.jsx'
 import { dateKey } from '../lib/util.js'
+import { groupIds } from '../lib/standings.js'
 
 export function Matches() {
   const { th, D, filter, setFilter } = useStore()
@@ -49,7 +50,7 @@ export function Matches() {
         {chip('all', 'All')}
         {chip('live', 'Live')}
         {chip('upcoming', 'Upcoming')}
-        {D.grouped ? 'ABCDEFGHIJKL'.split('').map(g => chip(g, 'Group ' + g)) : null}
+        {D.grouped ? groupIds(D).map(g => chip(g, 'Group ' + g)) : null}
       </div>
       {order.map(d => (
         <div key={d} ref={d === target ? todayRef : null} style={{ marginBottom: 22, scrollMarginTop: 80 }}>

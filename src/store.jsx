@@ -16,11 +16,11 @@ function mScore(m) {
   return { hs: m.hs, as: m.as, status: m.status, minute: null }
 }
 
-// Which tabs each competition shape exposes (the World Cup has groups + bracket, the
+// Which tabs each competition shape exposes (the World Cup and Nations League have groups + bracket, the
 // Champions League a bracket + table, plain leagues just a table). Used to reset the view
 // when switching to a league where the current tab doesn't exist.
 function viewsFor(slug) {
-  if (slug === 'fifa.world') return ['today', 'matches', 'bracket', 'groups', 'stats', 'teams']
+  if (slug === 'fifa.world' || slug === 'uefa.nations') return ['today', 'matches', 'bracket', 'groups', 'stats', 'teams']
   if (slug === 'uefa.champions') return ['today', 'matches', 'bracket', 'table', 'stats', 'teams']
   return ['today', 'matches', 'table', 'stats', 'teams']
 }

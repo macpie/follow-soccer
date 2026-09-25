@@ -24,8 +24,13 @@ export function standings(D, g, score) {
   const arr = Object.values(tab).map(r => Object.assign(r, { GD: r.GF - r.GA }))
   arr.sort((a, b) => b.Pts - a.Pts || b.GD - a.GD || b.GF - a.GF || a.id.localeCompare(b.id))
   arr.forEach((r, i) => { r.rank = i + 1 })
-  return { rows: arr, done: finished >= 6, anyLive: D.MATCHES.some(m => m.g === g && m.status === 'LIVE') }
+  // done once every scheduled group match has a result (6 per WC group; the Nations League
+  // plays home and away, so 12 in a group of four and 6 in a group of three)
+  return { rows: arr, done: total > 0 && finished >= total, anyLive: D.MATCHES.some(m => m.g === g && m.status === 'LIVE') }
 }
+
+// Group ids in display order: "A".."L" for the World Cup, "A1".."D2" for the Nations League.
+export const groupIds = D => Object.keys(D.GROUPS).sort()
 
 export function thirdRace(D, score) {
   const out = []
