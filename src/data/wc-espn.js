@@ -12,18 +12,20 @@
 
    Exposes: load(), refreshLive(matches), detail(matchId). */
 
-// Leagues offered in the app's switcher. Slugs are ESPN soccer competition paths.
+// Leagues offered in the app's switcher. `slug` is the ESPN soccer competition path (the
+// identity used for every request); `key` is the readable segment this league gets in the
+// app's own URL (see lib/routes.js).
 export const LEAGUES = [
-  { slug: 'fifa.world', name: 'World Cup', country: 'International', flag: '🌍' },
-  { slug: 'uefa.champions', name: 'Champions League', country: 'Europe', flag: '🇪🇺' },
-  { slug: 'uefa.nations', name: 'Nations League', country: 'Europe', flag: '🇪🇺' },
-  { slug: 'eng.1', name: 'Premier League', country: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
-  { slug: 'esp.1', name: 'La Liga', country: 'Spain', flag: '🇪🇸' },
-  { slug: 'ita.1', name: 'Serie A', country: 'Italy', flag: '🇮🇹' },
-  { slug: 'ger.1', name: 'Bundesliga', country: 'Germany', flag: '🇩🇪' },
-  { slug: 'fra.1', name: 'Ligue 1', country: 'France', flag: '🇫🇷' },
-  { slug: 'usa.1', name: 'MLS', country: 'USA', flag: '🇺🇸' },
-  { slug: 'mex.1', name: 'Liga MX', country: 'Mexico', flag: '🇲🇽' },
+  { slug: 'fifa.world', key: 'world-cup', name: 'World Cup', country: 'International', flag: '🌍' },
+  { slug: 'uefa.champions', key: 'champions-league', name: 'Champions League', country: 'Europe', flag: '🇪🇺' },
+  { slug: 'uefa.nations', key: 'nations-league', name: 'Nations League', country: 'Europe', flag: '🇪🇺' },
+  { slug: 'eng.1', key: 'premier-league', name: 'Premier League', country: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+  { slug: 'esp.1', key: 'la-liga', name: 'La Liga', country: 'Spain', flag: '🇪🇸' },
+  { slug: 'ita.1', key: 'serie-a', name: 'Serie A', country: 'Italy', flag: '🇮🇹' },
+  { slug: 'ger.1', key: 'bundesliga', name: 'Bundesliga', country: 'Germany', flag: '🇩🇪' },
+  { slug: 'fra.1', key: 'ligue-1', name: 'Ligue 1', country: 'France', flag: '🇫🇷' },
+  { slug: 'usa.1', key: 'mls', name: 'MLS', country: 'USA', flag: '🇺🇸' },
+  { slug: 'mex.1', key: 'liga-mx', name: 'Liga MX', country: 'Mexico', flag: '🇲🇽' },
 ]
 export const DEFAULT_LEAGUE = 'fifa.world'
 const leagueName = slug => (LEAGUES.find(l => l.slug === slug) || {}).name || 'Soccer'

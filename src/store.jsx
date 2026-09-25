@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react'
-import { WC_ESPN, LEAGUES, DEFAULT_LEAGUE } from './data/wc-espn.js'
+import { WC_ESPN, LEAGUES } from './data/wc-espn.js'
+import { viewsFor, viewsForData, resolveRoute, currentPath, currentSearch, writeRoute } from './lib/routes.js'
 import { theme } from './theme.js'
 import { standings as calcStandings, thirdRace as calcThirdRace } from './lib/standings.js'
 
@@ -16,25 +17,18 @@ function mScore(m) {
   return { hs: m.hs, as: m.as, status: m.status, minute: null }
 }
 
-// Which tabs each competition shape exposes (the World Cup and Nations League have groups + bracket, the
-// Champions League a bracket + table, plain leagues just a table). Used to reset the view
-// when switching to a league where the current tab doesn't exist.
-function viewsFor(slug) {
-  if (slug === 'fifa.world' || slug === 'uefa.nations') return ['today', 'matches', 'bracket', 'groups', 'stats', 'teams']
-  if (slug === 'uefa.champions') return ['today', 'matches', 'bracket', 'table', 'stats', 'teams']
-  return ['today', 'matches', 'table', 'stats', 'teams']
-}
-
 export function StoreProvider({ children }) {
   const saved = loadPrefs()
 
   // ---- persisted prefs ----
-  const [view, setViewState] = useState(saved.view || 'today')
+  // The competition and the open tab come from the URL whenever it names them, so a reload
+  // or a shared link opens on the right page; saved prefs are the fallback for a bare "/".
+  const route = resolveRoute(currentPath(), currentSearch(), saved)
+  const [view, setViewState] = useState(route.view)
   const [dark, setDark] = useState(saved.dark || false)
   const [favs, setFavs] = useState(saved.favs || ['USA', 'BRA'])
   const [notify, setNotify] = useState(saved.notify || false) // match alerts (15 min before kickoff)
-  const validLeague = LEAGUES.some(l => l.slug === saved.league) ? saved.league : DEFAULT_LEAGUE
-  const [league, setLeagueState] = useState(validLeague) // ESPN competition slug
+  const [league, setLeagueState] = useState(route.league) // ESPN competition slug
 
   // ---- ephemeral UI ----
   const [sel, setSel] = useState(null)
@@ -56,17 +50,42 @@ export function StoreProvider({ children }) {
   const dataRef = useRef(data); dataRef.current = data
   const favsRef = useRef(favs); favsRef.current = favs
   const leagueRef = useRef(league); leagueRef.current = league
+  const viewRef = useRef(view); viewRef.current = view
+  // The open modals are mirrored into refs too, and the actions below update those refs
+  // *eagerly* — a handler that closes one modal and opens another (TeamModal's schedule
+  // does exactly that) runs both calls before React re-renders, so reading state would
+  // rebuild the URL from values one step behind.
+  const selRef = useRef(sel); selRef.current = sel
+  const sel2Ref = useRef(sel2); sel2Ref.current = sel2
+  const selTeamRef = useRef(selTeam); selTeamRef.current = selTeam
   const notifiedRef = useRef(null)
   if (notifiedRef.current === null) notifiedRef.current = new Set() // lazy init — avoid allocating a Set every render
 
+  // Prefs are read through a ref so save() can stay stable across renders — async callbacks
+  // (a finished league load, a popstate) persist whatever the latest render knows rather
+  // than the values their closure captured.
+  const prefsRef = useRef(null); prefsRef.current = { view, dark, favs, notify, league }
   const save = useCallback((patch) => {
-    const next = Object.assign({ view, dark, favs, notify, league }, patch)
+    const next = Object.assign({}, prefsRef.current, patch)
     try { localStorage.setItem(PREFS_KEY, JSON.stringify(next)) } catch (e) {}
-  }, [view, dark, favs, notify, league])
+  }, [])
+
+  // Every action that changes where the user is funnels through here, so the address bar is
+  // rebuilt from one place out of the live refs. While `silentRef` is set we're *reacting*
+  // to the URL (a Back/Forward press) rather than driving it, and writing would fight the
+  // history entry we're restoring.
+  const silentRef = useRef(false)
+  const syncUrl = (options) => {
+    if (silentRef.current) return
+    writeRoute({
+      league: leagueRef.current, view: viewRef.current,
+      match: selRef.current, match2: sel2Ref.current, team: selTeamRef.current,
+    }, options)
+  }
 
   // Switching tabs also grabs fresh scores — a lightweight score-only refresh (not a full
   // loadLive), so there's no loading flicker, just up-to-date numbers.
-  const setView = (v) => { setViewState(v); save({ view: v }); refreshScores() }
+  const setView = (v) => { viewRef.current = v; setViewState(v); save({ view: v }); syncUrl(); refreshScores() }
   const toggleDark = () => { const d = !dark; setDark(d); save({ dark: d }) }
   const toggleFav = (id) => {
     setFavs(prev => {
@@ -111,9 +130,15 @@ export function StoreProvider({ children }) {
   // ---- match modal ----
   // Any match can be opened — played/live show the full match center, upcoming show a
   // preview (form, head-to-head, broadcasts) from the same detail call.
+  // Opening a match also dismisses any team modal: the one place that can do both at once is
+  // a team's schedule list, where picking a match means "take me there", not "stack it on
+  // top". Doing it in one action keeps it to a single history entry, so Back returns to the
+  // team rather than to an empty in-between state.
   const openMatch = (m) => {
     if (!m) return
-    setSel(m.id); setSel2(null); setModalTab('auto'); setDetail(null); setDetail2(null)
+    selRef.current = m.id; sel2Ref.current = null; selTeamRef.current = null
+    setSel(m.id); setSel2(null); setSelTeam(null); setModalTab('auto'); setDetail(null); setDetail2(null)
+    syncUrl()
     WC_ESPN.detail(m.id, leagueRef.current)
       .then(d => setSel(cur => { if (cur === m.id) setDetail(d); return cur }))
       .catch(() => {})
@@ -122,7 +147,9 @@ export function StoreProvider({ children }) {
   // Escape, or either card's × button all funnel through closeMatch) dismisses both at once.
   const openMatchPair = (m1, m2) => {
     if (!m1 || !m2) return
-    setSel(m1.id); setSel2(m2.id); setModalTab('auto'); setDetail(null); setDetail2(null)
+    selRef.current = m1.id; sel2Ref.current = m2.id; selTeamRef.current = null
+    setSel(m1.id); setSel2(m2.id); setSelTeam(null); setModalTab('auto'); setDetail(null); setDetail2(null)
+    syncUrl()
     WC_ESPN.detail(m1.id, leagueRef.current)
       .then(d => setSel(cur => { if (cur === m1.id) setDetail(d); return cur }))
       .catch(() => {})
@@ -130,17 +157,22 @@ export function StoreProvider({ children }) {
       .then(d => setSel2(cur => { if (cur === m2.id) setDetail2(d); return cur }))
       .catch(() => {})
   }
-  const closeMatch = () => { setSel(null); setSel2(null) }
+  const closeMatch = () => { selRef.current = null; sel2Ref.current = null; setSel(null); setSel2(null); syncUrl() }
 
-  const openTeam = (id) => {
-    if (!id || !data) return
+  // `dataset` lets a deep link open a team the moment its competition finishes loading,
+  // before the new data has reached state. Call sites pass nothing and get current data.
+  const openTeam = (id, dataset) => {
+    const d = (dataset && dataset.TEAMS) ? dataset : data
+    if (!id || !d) return
+    selTeamRef.current = id
     setSelTeam(id)
     setTeamSquad(null)
-    const tid = data.TEAMS[id] && data.TEAMS[id].tid
+    syncUrl()
+    const tid = d.TEAMS[id] && d.TEAMS[id].tid
     if (tid) {
       setTeamSquadLoading(true)
       // recent played/live matches → used to harvest real player headshots
-      const recent = data.MATCHES
+      const recent = d.MATCHES
         .filter(m => (m.h === id || m.a === id) && (m.status === 'FT' || m.status === 'LIVE'))
         .slice(-3).reverse().map(m => m.id)
       WC_ESPN.teamRoster(tid, recent, leagueRef.current)
@@ -150,7 +182,47 @@ export function StoreProvider({ children }) {
       setTeamSquadLoading(false)
     }
   }
-  const closeTeam = () => setSelTeam(null)
+  const closeTeam = () => { selTeamRef.current = null; setSelTeam(null); syncUrl() }
+
+  // ---- what to do once a competition's data arrives ----
+  // A modal named in the URL can only be opened once that competition is loaded: the match
+  // or team has to exist first, and a stale link shouldn't leave a modal spinning over a
+  // match this league doesn't have. Whoever starts a load parks the request here.
+  const pendingModalRef = useRef(null)
+  // Held in a ref (refreshed every render) so loadLive can stay a stable useCallback while
+  // still calling the current version of this.
+  const onLoadedRef = useRef(null)
+  onLoadedRef.current = (d) => {
+    // A competition's real tab set is only known once its data lands — the Champions League
+    // has no Bracket tab until the knockout draw is published. If the URL (or a saved pref)
+    // asked for a tab this dataset turns out not to have, drop to Today rather than leaving
+    // a fallback view up under no highlighted tab.
+    if (!viewsForData(d).includes(viewRef.current)) {
+      viewRef.current = 'today'
+      setViewState('today')
+      save({ view: 'today' })
+    }
+
+    const want = pendingModalRef.current
+    pendingModalRef.current = null
+    if (want && (want.match || want.team)) {
+      // Open them without writing history: these modals came *from* the URL, so the entry
+      // already exists. One replace at the end re-derives the address bar from what actually
+      // opened, which quietly drops any id this dataset didn't have.
+      silentRef.current = true
+      try {
+        const find = (id) => d.MATCHES.find(x => String(x.id) === String(id))
+        const m1 = want.match ? find(want.match) : null
+        const m2 = want.match2 ? find(want.match2) : null
+        if (m1 && m2) openMatchPair(m1, m2)
+        else if (m1) openMatch(m1)
+        if (want.team && d.TEAMS[want.team]) openTeam(want.team, d)
+      } finally {
+        silentRef.current = false
+      }
+    }
+    syncUrl({ replace: true })
+  }
 
   // ---- live data (ESPN) ----
   // Reads the latest data via dataRef (kept in sync below) instead of a setData updater, since
@@ -168,27 +240,91 @@ export function StoreProvider({ children }) {
     const lg = slug || leagueRef.current
     setSource('loading')
     WC_ESPN.load(lg)
-      .then(d => { if (leagueRef.current !== lg) return; setData(d); setSource('live') })
+      .then(d => {
+        if (leagueRef.current !== lg) return
+        setData(d); setSource('live')
+        onLoadedRef.current(d)
+      })
       .catch(() => { if (leagueRef.current === lg) setSource('error') })
   }, [])
 
-  // Switch competitions: persist the choice, clear the old dataset/modals, and reload.
-  const setLeague = (slug) => {
-    if (slug === leagueRef.current || !LEAGUES.some(l => l.slug === slug)) return
+  // Switch competitions: persist the choice, clear the old dataset/modals, and reload. The
+  // current tab carries over when the new competition also has it, else we land on Today.
+  // `wantModals` is only passed when stepping back to a history entry that had a modal open
+  // in that league — it's applied once the new dataset can vouch for the ids.
+  const applyLeague = (slug, nextView, wantModals) => {
     leagueRef.current = slug
+    viewRef.current = nextView
+    selRef.current = null; sel2Ref.current = null; selTeamRef.current = null
+    pendingModalRef.current = wantModals || null
     setLeagueState(slug)
-    if (viewsFor(slug).includes(view)) { save({ league: slug }) }
-    else { setViewState('today'); save({ league: slug, view: 'today' }) }
+    setViewState(nextView)
+    save({ league: slug, view: nextView })
     setSel(null); setSel2(null); setSelTeam(null); setDetail(null); setDetail2(null); setFilter('all')
     setData(null)
     loadLive(slug)
   }
 
+  const setLeague = (slug) => {
+    if (slug === leagueRef.current || !LEAGUES.some(l => l.slug === slug)) return
+    const nextView = viewsFor(slug).includes(viewRef.current) ? viewRef.current : 'today'
+    applyLeague(slug, nextView)
+    syncUrl()
+  }
+
+  // Back/forward buttons: re-read the URL and move the app to whatever it now names. Held
+  // in a ref refreshed every render (like dataRef above) so the listener can be registered
+  // once on mount without ever reading a stale league/view.
+  const onPopRef = useRef(null)
+  onPopRef.current = () => {
+    const r = resolveRoute(currentPath(), currentSearch(), { league: leagueRef.current, view: viewRef.current })
+    // A different competition has to reload before its modals mean anything, so hand them to
+    // the load; everything else we can apply right now against the data already in hand.
+    if (r.league !== leagueRef.current) { applyLeague(r.league, r.view, r); return }
+
+    // We're following the address bar here, not driving it — suppress the writes these
+    // actions would otherwise make, or they'd push new entries over the one we're restoring.
+    silentRef.current = true
+    try {
+      if (r.view !== viewRef.current) { viewRef.current = r.view; setViewState(r.view); save({ view: r.view }); refreshScores() }
+
+      const d = dataRef.current
+      if (r.match !== selRef.current || r.match2 !== sel2Ref.current) {
+        const find = (id) => (d ? d.MATCHES.find(x => String(x.id) === String(id)) : null)
+        const m1 = r.match ? find(r.match) : null
+        const m2 = r.match2 ? find(r.match2) : null
+        if (m1 && m2) openMatchPair(m1, m2)
+        else if (m1) openMatch(m1)
+        else closeMatch()
+      }
+      if (r.team !== selTeamRef.current) {
+        if (r.team && d && d.TEAMS[r.team]) openTeam(r.team, d)
+        else closeTeam()
+      }
+    } finally {
+      silentRef.current = false
+    }
+  }
+
   // ---- effects ----
   useEffect(() => {
+    // Stamp the canonical URL over whatever we arrived on ("/", a bare league, an ESPN slug)
+    // so the address bar always reflects where the app actually is, and persist where we
+    // landed — arriving by link counts as "where you were" for the next bare "/" visit. The
+    // modal ids ride along untouched; they can't be checked until the data is here.
+    writeRoute(route, { replace: true })
+    save({ league: route.league, view: route.view })
+    pendingModalRef.current = { match: route.match, match2: route.match2, team: route.team }
     loadLive()
     // eslint-disable-next-line react-doctor/exhaustive-deps -- loadLive is a stable useCallback chain; this must run once on mount only
   }, [])
+
+  useEffect(() => {
+    const onPop = () => onPopRef.current()
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
 
   // Match alerts: while enabled, check every 30s and fire a notification once a followed
   // team's match is within 15 minutes of kickoff. Only works while the app is open.

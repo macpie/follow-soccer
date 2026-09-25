@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store.jsx'
+import { viewsForData } from '../lib/routes.js'
 import { BallMark, SunIcon, MoonIcon, BellIcon, RefreshIcon, TabIcon } from './icons.jsx'
 
-// Tab sets by competition shape:
-//  - grouped (World Cup): Groups + Bracket
-//  - cup with a knockout bracket but no groups (Champions League): Table + Bracket
-//  - plain league: Table only
-const TABS_GROUPED = [['today', 'Today'], ['matches', 'Matches'], ['bracket', 'Bracket'], ['groups', 'Groups'], ['stats', 'Stats'], ['teams', 'Teams']]
-const TABS_CUP = [['today', 'Today'], ['matches', 'Matches'], ['bracket', 'Bracket'], ['table', 'Table'], ['stats', 'Stats'], ['teams', 'Teams']]
-const TABS_LEAGUE = [['today', 'Today'], ['matches', 'Matches'], ['table', 'Table'], ['stats', 'Stats'], ['teams', 'Teams']]
+// Which tabs to show is decided by viewsForData() in lib/routes.js — the same function the
+// URL router validates against, so the tab bar and the address bar can never disagree about
+// which pages this competition has. Here we only put a label on each one.
+const TAB_LABELS = { today: 'Today', matches: 'Matches', bracket: 'Bracket', groups: 'Groups', table: 'Table', stats: 'Stats', teams: 'Teams' }
 
 // Custom league dropdown: each row shows the league name on the left and its country on
 // the right. (A native <select> can't lay options out this way.)
@@ -82,7 +80,7 @@ function LeagueMenu() {
 export function Header() {
   const { th, dark, view, setView, toggleDark, D, notify, notifySupported, toggleNotify, source, reload } = useStore()
   const refreshing = source === 'loading'
-  const tabs = D.grouped ? TABS_GROUPED : (D.bracket ? TABS_CUP : TABS_LEAGUE)
+  const tabs = viewsForData(D).map(id => [id, TAB_LABELS[id]])
 
   const navBtn = ([id, label]) => {
     const on = view === id
