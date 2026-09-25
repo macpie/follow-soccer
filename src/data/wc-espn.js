@@ -16,6 +16,7 @@
 export const LEAGUES = [
   { slug: 'fifa.world', name: 'World Cup', country: 'International', flag: '🌍' },
   { slug: 'uefa.champions', name: 'Champions League', country: 'Europe', flag: '🇪🇺' },
+  { slug: 'uefa.nations', name: 'Nations League', country: 'Europe', flag: '🇪🇺' },
   { slug: 'eng.1', name: 'Premier League', country: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
   { slug: 'esp.1', name: 'La Liga', country: 'Spain', flag: '🇪🇸' },
   { slug: 'ita.1', name: 'Serie A', country: 'Italy', flag: '🇮🇹' },
@@ -37,7 +38,7 @@ const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const fmtDate = d => (!d || isNaN(d)) ? null : DOW[d.getDay()] + ' ' + MON[d.getMonth()] + ' ' + d.getDate()
 const fmtTime = d => { if (!d || isNaN(d)) return null; let h = d.getHours(), m = d.getMinutes(), ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(m).padStart(2, '0') + ' ' + ap }
 const mapState = s => s === 'in' ? 'LIVE' : s === 'post' ? 'FT' : 'UP'
-const ROUND_LABEL = { 'round-of-32': 'Round of 32', 'knockout-round-playoffs': 'Play-off', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }
+const ROUND_LABEL = { 'relegation-playoffs': 'Relegation play-off', 'round-of-32': 'Round of 32', 'knockout-round-playoffs': 'Play-off', 'round-of-16': 'Round of 16', quarterfinals: 'Quarter-final', semifinals: 'Semi-final', '3rd-place-match': 'Third place', final: 'Final' }
 const hex = (c, fallback) => !c ? fallback : (String(c)[0] === '#' ? c : '#' + c)
 const code3 = t => String((t && t.abbreviation) || '').toUpperCase()
 // Stable per-team key: 3-letter code when available, else the ESPN team id. Clubs always
@@ -95,13 +96,15 @@ function mapMatch(ev, codeToGroup, idToCode, TEAMS, CRESTS) {
   const state = ev.status && ev.status.type && ev.status.type.state
   const status = mapState(state)
   const when = ev.date ? new Date(ev.date) : null
-  const grp = codeToGroup[h] || codeToGroup[a] || '?'
+  const round = (ev.season && ev.season.slug) || null
+  // A knockout round is never a group match, even when both teams also played in a group
+  // (Nations League quarter-finals and play-offs are contested by group finishers).
+  const grp = ROUND_LABEL[round] ? '?' : (codeToGroup[h] || codeToGroup[a] || '?')
   const venue = c.venue || {}
   const v = [venue.fullName, venue.address && venue.address.city].filter(Boolean).join(' · ')
   const score = (comp) => (state === 'pre' || comp.score == null || comp.score === '') ? null : Number(comp.score)
-  const round = (ev.season && ev.season.slug) || null
-  // Stage label only applies to WC knockout slugs; league matches have no stage.
-  const stage = grp !== '?' ? null : (ROUND_LABEL[round] || null)
+  // Stage label only applies to knockout slugs; league/group matches have no stage.
+  const stage = ROUND_LABEL[round] || null
   // a side is "known" (a real qualified team) when its code maps to a group; otherwise it's
   // a placeholder slot (e.g. "Group L Winner", "Third Place Group C/E/F/H/I").
   const nameOf = (comp) => (comp.team && (comp.team.displayName || comp.team.shortDisplayName)) || ''
@@ -168,6 +171,24 @@ async function loadLeaders(idToCode, slug, year) {
 
 const statVal = (stats, name) => { const s = (stats || []).find(x => x.name === name); return s ? Number(s.value) || 0 : 0 }
 
+// Fallback when ESPN rejects the season date-range query (it currently answers HTTP 400 to
+// every `dates=YYYYMMDD-YYYYMMDD` request): fetch each calendar year the season spans with
+// the `dates=YYYY` form, which still works, then dedupe and keep only events inside the
+// season window — a calendar year also returns the tail/head of neighbouring seasons.
+async function seasonByYears(slug, season, sb0) {
+  const from = new Date(season.startDate).getTime(), to = new Date(season.endDate).getTime()
+  const years = []
+  for (let y = new Date(from).getFullYear(); y <= new Date(to).getFullYear(); y++) years.push(y)
+  const pages = await Promise.all(years.map(y => getJSON(SITE(slug) + '/scoreboard?dates=' + y + '&limit=600').catch(() => null)))
+  const byId = new Map()
+  pages.forEach(p => ((p && p.events) || []).forEach(ev => {
+    const t = ev.date ? new Date(ev.date).getTime() : NaN
+    if (t >= from && t <= to) byId.set(String(ev.id), ev)
+  }))
+  if (!byId.size) return sb0
+  return { events: [...byId.values()].sort((a, b) => new Date(a.date) - new Date(b.date)) }
+}
+
 async function load(slug = DEFAULT_LEAGUE) {
   // First call yields the season window (for the full fixture list) and current events.
   const sb0 = await getJSON(SITE(slug) + '/scoreboard')
@@ -176,7 +197,7 @@ async function load(slug = DEFAULT_LEAGUE) {
   const range = (season.startDate && season.endDate) ? ymd(season.startDate) + '-' + ymd(season.endDate) : null
 
   const [sb, st] = await Promise.all([
-    range ? getJSON(SITE(slug) + '/scoreboard?dates=' + range + '&limit=600').catch(() => sb0) : Promise.resolve(sb0),
+    range ? getJSON(SITE(slug) + '/scoreboard?dates=' + range + '&limit=600').catch(() => seasonByYears(slug, season, sb0)) : Promise.resolve(sb0),
     getJSON(SITE_V2(slug) + '/standings').catch(() => null),
   ])
 

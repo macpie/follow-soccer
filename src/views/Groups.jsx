@@ -1,9 +1,10 @@
 import { useStore } from '../store.jsx'
 import { Wrap, SectionTitle, LivePill, Pill, Badge, Star } from '../components/atoms.jsx'
+import { groupIds } from '../lib/standings.js'
 
 const HEAD = [['rank', ''], ['team', 'Team'], ['p', 'P'], ['w', 'W'], ['d', 'D'], ['l', 'L'], ['gd', 'GD'], ['pts', 'Pts'], ['fav', '']]
 
-function GroupCard({ g }) {
+function GroupCard({ g, wc }) {
   const { th, t, favs, openTeam, standings } = useStore()
   const s = standings(g)
   return (
@@ -22,7 +23,8 @@ function GroupCard({ g }) {
         </thead>
         <tbody>
           {s.rows.map(r => {
-            const band = r.rank <= 2 ? th.good : (r.rank === 3 ? th.warn : 'transparent')
+            // WC: top two go through, third may as one of the best 8. Elsewhere just mark the winner.
+            const band = wc ? (r.rank <= 2 ? th.good : (r.rank === 3 ? th.warn : 'transparent')) : (r.rank === 1 ? th.good : 'transparent')
             const fav = favs.includes(r.id)
             return (
               <tr key={r.id} onClick={() => openTeam(r.id)} aria-label={t(r.id).name + ' details'} style={{ cursor: 'pointer', background: fav ? th.accentSoft : 'transparent', borderTop: '1px solid ' + th.bd }}>
@@ -50,9 +52,20 @@ function GroupCard({ g }) {
   )
 }
 
+const GRID = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 14 }
+
 export function Groups() {
-  const { th, t, thirdRace } = useStore()
-  const third = thirdRace()
+  const { th, t, D, thirdRace } = useStore()
+  const wc = D.slug === 'fifa.world'
+  const third = wc ? thirdRace() : []
+  const ids = groupIds(D)
+  // Nations League groups are named "A1".."D2": section them by league tier (A-D).
+  const tiers = []
+  ids.forEach(g => {
+    const tier = g.length > 1 ? g[0] : ''
+    const last = tiers[tiers.length - 1]
+    if (last && last.tier === tier) last.groups.push(g); else tiers.push({ tier, groups: [g] })
+  })
   const legend = (c, l) => (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: th.sub }}>
       <span style={{ width: 9, height: 9, borderRadius: 3, background: c }} />{l}
@@ -61,16 +74,21 @@ export function Groups() {
   return (
     <Wrap>
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginBottom: 18 }}>
-        {legend(th.good, 'Round of 32')}
-        {legend(th.warn, '3rd — best 8 advance')}
+        {wc ? legend(th.good, 'Round of 32') : legend(th.good, 'Group winner')}
+        {wc ? legend(th.warn, '3rd — best 8 advance') : null}
         <span style={{ fontSize: 12, color: th.faint, fontWeight: 600 }}>Click team to view profile · ★ to follow</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 14 }}>
-        {'ABCDEFGHIJKL'.split('').map(g => <GroupCard key={g} g={g} />)}
-      </div>
+      {tiers.map(({ tier, groups }, i) => (
+        <div key={tier || 'all'} style={{ marginTop: i ? 30 : 0 }}>
+          {tier ? <SectionTitle label={'League ' + tier} /> : null}
+          <div style={GRID}>
+            {groups.map(g => <GroupCard key={g} g={g} wc={wc} />)}
+          </div>
+        </div>
+      ))}
 
       {/* third-place race — the best 8 third-placed teams advance to the Round of 32 */}
-      <div style={{ marginTop: 30 }}>
+      {wc ? <div style={{ marginTop: 30 }}>
         <SectionTitle label="Third-place race · best 8 advance" />
         <div style={{ border: '1px solid ' + th.bd, background: th.sf, borderRadius: 16, overflow: 'hidden' }}>
           {third.map((r, i) => (
@@ -88,7 +106,7 @@ export function Groups() {
             </div>
           ))}
         </div>
-      </div>
+      </div> : null}
     </Wrap>
   )
 }
