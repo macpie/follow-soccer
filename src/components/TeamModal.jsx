@@ -73,7 +73,9 @@ function PlayerCard({ p, teamColor }) {
 }
 
 function MatchRow({ m }) {
-  const { th, t, openMatch, closeTeam } = useStore()
+  // openMatch dismisses this team modal itself, in one step — so the URL gets a single
+  // history entry and Back comes straight back here.
+  const { th, t, openMatch } = useStore()
   const TH = t(m.h), TA = t(m.a)
   const played = m.hs != null
   const isLive = m.status === 'LIVE'
@@ -81,7 +83,7 @@ function MatchRow({ m }) {
   return (
     <button
       type="button"
-      onClick={() => { closeTeam(); openMatch(m) }}
+      onClick={() => openMatch(m)}
       aria-label={(TH ? TH.name : m.h) + ' vs ' + (TA ? TA.name : m.a)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', width: '100%',
